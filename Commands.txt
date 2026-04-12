@@ -1,0 +1,6 @@
+rm -rf /home/kina/Documents/Flux/build/*
+cmake -S /home/kina/Documents/Flux/ -B /home/kina/Documents/Flux/build
+cmake --build /home/kina/Documents/Flux/build
+
+Add this to your ~/.bashrc:
+export VK_LAYER_PATH=/usr/share/vulkan/explicit_layer.d
