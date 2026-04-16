@@ -4,7 +4,7 @@ VkResult selectLogicalDevice(VkPhysicalDevice physicalDevice, uint32_t queueFami
     float queuePriority = 1.0f;
     const char* extensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 
-        VkDeviceQueueCreateInfo queueCreateInfo{};
+    VkDeviceQueueCreateInfo queueCreateInfo{};
 
     queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
     queueCreateInfo.queueFamilyIndex = queueFamilyIndex;

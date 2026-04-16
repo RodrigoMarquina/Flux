@@ -5,4 +5,4 @@
 #include <iostream>
 #include <vector>
 
-VkResult selectPhysicalDevice(VkInstance* instance, VkSurfaceKHR* surface, VkPhysicalDevice* device, uint32_t* queueFamilyIndex);
+VkResult selectPhysicalDevice(VkInstance* instance, VkSurfaceKHR* surface, VkPhysicalDevice* physicalDevice, uint32_t* queueFamilyIndex);

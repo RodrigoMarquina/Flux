@@ -3,6 +3,8 @@
 #include "vulkan_surface.h"
 #include "physical_device.h"
 #include "logical_device.h"
+#include "swapchain.h"
+#include "swapchain_images.h"
 
 int main(){
 	if(!glfwInit()){
@@ -49,13 +51,33 @@ int main(){
 		fprintf(stderr, "VkResult code: %d\n", logicalDeviceResult);
 		return 1;
 	}
+	
+	VkSwapchainKHR swapchain;
+	VkFormat format;
+	VkResult swapchainResult = createSwapchain(&swapchain, &format, &physicalDevice, &logicalDevice, &surface, queueFamilyIndex, window);
+	if(swapchainResult != VK_SUCCESS){
+		fprintf(stderr, "Failed to create Swapchain.\n");
+		fprintf(stderr, "VkResult code: %d\n", swapchainResult);
+		return 1;
+	}
 
-	fprintf(stdout, "Logical device created successfully.\n");
+	std::vector<VkImage> images;
+	std::vector<VkImageView> imageViews;
+	VkResult getSwapchainImagesResult = getSwapchainImages(&swapchain, &logicalDevice, images, imageViews, &format);
+	if(getSwapchainImagesResult != VK_SUCCESS){
+		fprintf(stderr, "Failed to create Swapchain images.\n");
+		fprintf(stderr, "VkResult code: %d\n", getSwapchainImagesResult);
+		return 1;
+	}
 
 	while(!glfwWindowShouldClose(window)){
 		glfwPollEvents();
     }
 	
+	for(VkImageView imageView : imageViews){
+		vkDestroyImageView(logicalDevice, imageView, nullptr);
+	}
+	vkDestroySwapchainKHR(logicalDevice, swapchain, nullptr);
 	vkDestroyDevice(logicalDevice, nullptr);
 	vkDestroySurfaceKHR(instance, surface, nullptr);
 	vkDestroyInstance(instance, nullptr);

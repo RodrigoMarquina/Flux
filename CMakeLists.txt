@@ -10,6 +10,8 @@ FETCHCONTENT_MAKEAVAILABLE(GLFW)
 find_package(Vulkan REQUIRED)
 
 add_executable(Flux
+    src/swapchain_images.cpp
+    src/swapchain.cpp
     src/logical_device.cpp
     src/physical_device.cpp
     src/vulkan_surface.cpp
