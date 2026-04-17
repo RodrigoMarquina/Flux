@@ -1,0 +1,54 @@
+The render pass describes the structure of rendering — what attachments exist and how they're used. 
+But it doesn't say which specific images to render into. That's the framebuffer's job.
+A VkFramebuffer binds a render pass to a set of actual VkImageViews. 
+It says: "when you execute this render pass, render into these specific images."
+
+Command Pool
+Command buffers need to be allocated from somewhere. The command pool is the allocator that manages the memory for command buffers. 
+You create a pool tied to a specific queue family, then allocate command buffers from it.
+Allocating and freeing memory frequently is expensive. A pool pre-allocates a chunk of memory upfront, then command buffers are carved out 
+of it cheaply. When you reset or free a command buffer, the memory goes back to the pool for reuse — no system allocator involved.
+
+#Pipeline
+CommandPool(1) → CommandBuffer(x) → records commands for Framebuffer(x)
+RenderPass(1) → describes structure, used by all Framebuffer(x)
+Framebuffer(x) → binds RenderPass + ImageView(x)
+Swapchain → owns Image(x)
+
+
+#Vulkan
+In Vulkan, the graphics pipeline has several stages. Some are fixed-function — you configure them but can't change the logic. 
+Some are programmable — you write shader code that runs on the GPU.
+
+The main stages in order:
+Input Assembly — reads vertex data, assembles triangles
+Vertex Shader — runs once per vertex, transforms 3D positions to screen space
+Rasterization — converts triangles to fragments (potential pixels)
+Fragment Shader — runs once per fragment, determines the final color
+Color Blending — combines fragment output with existing framebuffer content
+
+
+Semaphores — GPU-to-GPU synchronization. One GPU operation signals a semaphore, another GPU operation waits on it. The CPU can't wait on a semaphore. 
+Used to synchronize between acquiring an image and rendering, and between rendering and presenting.
+Fences — GPU-to-CPU synchronization. The GPU signals a fence when work completes, and the CPU can wait on it. 
+Used to prevent the CPU from submitting a new frame before the GPU finished the previous one.
+
+
+Inside the while loop, each frame needs to do these steps in order:
+vkWaitForFences — wait for the previous frame to finish
+vkResetFences — reset the fence for this frame
+vkAcquireNextImageKHR — get the next swapchain image index
+vkResetCommandBuffer — clear the command buffer for this frame
+Record commands into the command buffer
+vkQueueSubmit — submit the command buffer
+vkQueuePresentKHR — present the rendered image
+
+
+#Recording commands
+The sequence is:
+vkBeginCommandBuffer — start recording
+vkCmdBeginRenderPass — begin the render pass, specifying which framebuffer and clear color
+vkCmdBindPipeline — bind the graphics pipeline
+vkCmdDraw — draw 3 vertices (your hardcoded triangle)
+vkCmdEndRenderPass — end the render pass
+vkEndCommandBuffer — stop recording

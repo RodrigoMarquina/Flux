@@ -1,6 +1,6 @@
 #include "swapchain.h"
 
-VkResult createSwapchain(VkSwapchainKHR* swapchain, VkFormat* format, VkPhysicalDevice* physicalDevice, VkDevice* logicalDevice, VkSurfaceKHR* surface, uint32_t queueFamilyIndex, GLFWwindow* window){
+VkResult createSwapchain(VkSwapchainKHR* swapchain, VkFormat* format, VkPhysicalDevice* physicalDevice, VkDevice* logicalDevice, VkSurfaceKHR* surface, uint32_t queueFamilyIndex, GLFWwindow* window, VkExtent2D* extent){
     VkSurfaceCapabilitiesKHR surfaceCapabilities{};
     VkResult physicalDeviceSurfaceCapabilitiesResult = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(*physicalDevice, *surface, &surfaceCapabilities);
     if(physicalDeviceSurfaceCapabilitiesResult != VK_SUCCESS){
@@ -57,14 +57,14 @@ VkResult createSwapchain(VkSwapchainKHR* swapchain, VkFormat* format, VkPhysical
     int width = 0, height = 0;
     glfwGetFramebufferSize(window, &width, &height);
     if(surfaceCapabilities.currentExtent.width == UINT32_MAX){
-        width = std::clamp(static_cast<uint32_t>(width), surfaceCapabilities.minImageExtent.width, surfaceCapabilities.maxImageExtent.width);
+        extent->width = std::clamp(static_cast<uint32_t>(width), surfaceCapabilities.minImageExtent.width, surfaceCapabilities.maxImageExtent.width);
     } else{
-        width = surfaceCapabilities.currentExtent.width;
+        extent->width = surfaceCapabilities.currentExtent.width;
     }
     if(surfaceCapabilities.currentExtent.height == UINT32_MAX){
-        height = std::clamp(static_cast<uint32_t>(height), surfaceCapabilities.minImageExtent.height, surfaceCapabilities.maxImageExtent.height);
+        extent->height = std::clamp(static_cast<uint32_t>(height), surfaceCapabilities.minImageExtent.height, surfaceCapabilities.maxImageExtent.height);
     } else{
-        height = surfaceCapabilities.currentExtent.height;
+        extent->height = surfaceCapabilities.currentExtent.height;
     }
 
     VkSwapchainCreateInfoKHR swapchainInfo{};
@@ -79,7 +79,7 @@ VkResult createSwapchain(VkSwapchainKHR* swapchain, VkFormat* format, VkPhysical
         swapchainInfo.minImageCount = surfaceCapabilities.minImageCount + 1;
     }
     swapchainInfo.imageColorSpace = colorSpace;
-    swapchainInfo.imageExtent = {static_cast<uint32_t>(width), static_cast<uint32_t>(height)};
+    swapchainInfo.imageExtent = {extent->width, extent->height};
     swapchainInfo.imageArrayLayers = 1; //More than 1 is for stereoscopic/VR
     swapchainInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
     swapchainInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE; //One queue family owns it

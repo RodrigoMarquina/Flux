@@ -10,6 +10,13 @@ FETCHCONTENT_MAKEAVAILABLE(GLFW)
 find_package(Vulkan REQUIRED)
 
 add_executable(Flux
+    src/sync_objects.cpp
+    src/pipeline.cpp
+    src/shader_module.cpp
+    src/command_buffers.cpp
+    src/command_pool.cpp
+    src/frame_buffers.cpp
+    src/render_pass.cpp
     src/swapchain_images.cpp
     src/swapchain.cpp
     src/logical_device.cpp
