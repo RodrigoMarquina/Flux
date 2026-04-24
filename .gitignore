@@ -3,3 +3,4 @@ build/
 *.out
 .cache/
 CLAUDE.md
+Notes.txt

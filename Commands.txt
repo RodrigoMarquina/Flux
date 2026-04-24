@@ -5,4 +5,4 @@ cmake --build /home/kina/Documents/Flux/build
 Add this to your ~/.bashrc:
 export VK_LAYER_PATH=/usr/share/vulkan/explicit_layer.d
 
-Queue families are about what types of work the GPU can execute and where.
+glslc cube.vert -o cube.vert.spv and glslc cube.frag -o cube.frag.spv, run from the shaders/ directory.

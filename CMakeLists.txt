@@ -8,8 +8,12 @@ FETCHCONTENT_DECLARE(GLFW GIT_REPOSITORY https://github.com/glfw/glfw.git)
 FETCHCONTENT_MAKEAVAILABLE(GLFW)
 
 find_package(Vulkan REQUIRED)
+find_package(glm REQUIRED)
 
 add_executable(Flux
+    src/depth_buffer.cpp
+    src/vertex_buffer.cpp
+    src/vertex.cpp
     src/sync_objects.cpp
     src/pipeline.cpp
     src/shader_module.cpp
@@ -29,5 +33,5 @@ add_executable(Flux
 
 target_include_directories(Flux PUBLIC include)
 
-target_link_libraries(Flux glfw Vulkan::Vulkan)
+target_link_libraries(Flux glfw Vulkan::Vulkan glm::glm)
 

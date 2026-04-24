@@ -1,4 +1,5 @@
 #include "pipeline.h"
+#include "vertex.h"
 #include <vulkan/vulkan.h>
 #include <array>
 
@@ -17,12 +18,32 @@ VkResult createPipeline(VkPipeline* pipeline, VkRenderPass* renderPass, VkDevice
     pipelineShaderStageCreateInfoFrag.pName = "main";
     pipelineShaderStageCreateInfoFrag.pSpecializationInfo = nullptr;
 
+    VkVertexInputBindingDescription vertexInputBindingDescription {};
+    vertexInputBindingDescription.binding = 0;
+    vertexInputBindingDescription.stride = sizeof(Vertex);
+    vertexInputBindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+    VkVertexInputAttributeDescription vertexInputAttributeDescription1 {};
+    vertexInputAttributeDescription1.binding = 0;
+    vertexInputAttributeDescription1.location = 1;
+    vertexInputAttributeDescription1.format = VK_FORMAT_R32G32B32_SFLOAT;
+    vertexInputAttributeDescription1.offset = 12;
+
+    VkVertexInputAttributeDescription vertexInputAttributeDescription2 {};
+    vertexInputAttributeDescription2.binding = 0;
+    vertexInputAttributeDescription2.location = 0;
+    vertexInputAttributeDescription2.format = VK_FORMAT_R32G32B32_SFLOAT;
+    vertexInputAttributeDescription2.offset = 0;
+
     std::array<VkPipelineShaderStageCreateInfo, 2> shaderStage = {pipelineShaderStageCreateInfoVert, pipelineShaderStageCreateInfoFrag};
+    std::array<VkVertexInputAttributeDescription, 2> vertexDescription = {vertexInputAttributeDescription1, vertexInputAttributeDescription2};
 
     VkPipelineVertexInputStateCreateInfo pipelineVertexInputStateCreateInfo {};
     pipelineVertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    pipelineVertexInputStateCreateInfo.vertexBindingDescriptionCount = 0;
-    pipelineVertexInputStateCreateInfo.vertexAttributeDescriptionCount = 0;
+    pipelineVertexInputStateCreateInfo.vertexBindingDescriptionCount = 1;
+    pipelineVertexInputStateCreateInfo.vertexAttributeDescriptionCount = 2;
+    pipelineVertexInputStateCreateInfo.pVertexBindingDescriptions = &vertexInputBindingDescription;
+    pipelineVertexInputStateCreateInfo.pVertexAttributeDescriptions = vertexDescription.data();
 
     VkPipelineInputAssemblyStateCreateInfo pipelineInputAssemblyStateCreateInfo {};
     pipelineInputAssemblyStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -43,7 +64,7 @@ VkResult createPipeline(VkPipeline* pipeline, VkRenderPass* renderPass, VkDevice
     pipelineRasterizationStateCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
     pipelineRasterizationStateCreateInfo.lineWidth = 1.0f;
     pipelineRasterizationStateCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
-    pipelineRasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
+    pipelineRasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     pipelineRasterizationStateCreateInfo.depthBiasEnable = VK_FALSE;
 
     VkPipelineMultisampleStateCreateInfo pipelineMultisampleStateCreateInfo {};
@@ -71,6 +92,12 @@ VkResult createPipeline(VkPipeline* pipeline, VkRenderPass* renderPass, VkDevice
         return createPipelineLayoutResult;
     }
 
+    VkPipelineDepthStencilStateCreateInfo pipelineDepthStencilStateCreateInfo {};
+    pipelineDepthStencilStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    pipelineDepthStencilStateCreateInfo.depthTestEnable = VK_TRUE;
+    pipelineDepthStencilStateCreateInfo.depthWriteEnable = VK_TRUE;
+    pipelineDepthStencilStateCreateInfo.depthCompareOp = VK_COMPARE_OP_LESS;
+
     VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo {};
     graphicsPipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
     graphicsPipelineCreateInfo.stageCount = 2;
@@ -80,6 +107,7 @@ VkResult createPipeline(VkPipeline* pipeline, VkRenderPass* renderPass, VkDevice
     graphicsPipelineCreateInfo.pViewportState = &pipelineViewportStateCreateInfo;
     graphicsPipelineCreateInfo.pRasterizationState = &pipelineRasterizationStateCreateInfo;
     graphicsPipelineCreateInfo.pMultisampleState = &pipelineMultisampleStateCreateInfo;
+    graphicsPipelineCreateInfo.pDepthStencilState = &pipelineDepthStencilStateCreateInfo;
     graphicsPipelineCreateInfo.pColorBlendState = &pipelineColorBlendStateCreateInfo;
     graphicsPipelineCreateInfo.layout = *pipelineLayout;
     graphicsPipelineCreateInfo.renderPass = *renderPass;

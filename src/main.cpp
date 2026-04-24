@@ -12,6 +12,8 @@
 #include "shader_module.h"
 #include "pipeline.h"
 #include "sync_objects.h"
+#include "vertex_buffer.h"
+#include "depth_buffer.h"
 
 int main(){
 	if(!glfwInit()){
@@ -61,8 +63,8 @@ int main(){
 	
 	VkSwapchainKHR swapchain;
 	VkFormat format;
-	VkExtent2D extend;
-	VkResult swapchainResult = createSwapchain(&swapchain, &format, &physicalDevice, &logicalDevice, &surface, queueFamilyIndex, window, &extend);
+	VkExtent2D extent;
+	VkResult swapchainResult = createSwapchain(&swapchain, &format, &physicalDevice, &logicalDevice, &surface, queueFamilyIndex, window, &extent);
 	if(swapchainResult != VK_SUCCESS){
 		fprintf(stderr, "Failed to create Swapchain.\n");
 		fprintf(stderr, "VkResult code: %d\n", swapchainResult);
@@ -86,8 +88,18 @@ int main(){
 		return 1;
 	}
 
+	VkImage depthImage;
+	VkDeviceMemory depthDeviceMemory;
+	VkImageView depthImageView; 
+	VkResult createDepthBufferResult = createDepthBuffer(&physicalDevice, &logicalDevice, &extent, &depthImage, &depthDeviceMemory, &depthImageView);
+	if(createDepthBufferResult != VK_SUCCESS){
+		fprintf(stderr, "Failed to create Depth Image.\n");
+		fprintf(stderr, "VkResult code: %d\n", createDepthBufferResult);
+		return 1;
+	}
+
 	std::vector<VkFramebuffer> frameBuffers;
-	VkResult createFrameBufferResult = createFrameBuffer(&renderPass, imageViews, &logicalDevice, &extend, frameBuffers);
+	VkResult createFrameBufferResult = createFrameBuffer(&renderPass, imageViews, &logicalDevice, &extent, frameBuffers, &depthImageView);
 	if(createFrameBufferResult != VK_SUCCESS){
 		fprintf(stderr, "Failed to create Frame Buffer.\n");
 		fprintf(stderr, "VkResult code: %d\n", createFrameBufferResult);
@@ -112,7 +124,7 @@ int main(){
 
 	//Vert file
 	VkShaderModule shaderModuleVert;
-	VkResult createShaderModuleResultVert = createShaderModule(&logicalDevice, &shaderModuleVert, "/home/kina/Documents/Flux/shaders/triangle.vert.spv");
+	VkResult createShaderModuleResultVert = createShaderModule(&logicalDevice, &shaderModuleVert, "/home/kina/Documents/Flux/shaders/cube.vert.spv");
 	if(createShaderModuleResultVert != VK_SUCCESS){
 		fprintf(stderr, "Failed to create Shader Module for .vert file.\n");
 		fprintf(stderr, "VkResult code: %d\n", createShaderModuleResultVert);
@@ -121,7 +133,7 @@ int main(){
 
 	//Frag file
 	VkShaderModule shaderModuleFrag;
-	VkResult createShaderModuleResultFrag = createShaderModule(&logicalDevice, &shaderModuleFrag, "/home/kina/Documents/Flux/shaders/triangle.frag.spv");
+	VkResult createShaderModuleResultFrag = createShaderModule(&logicalDevice, &shaderModuleFrag, "/home/kina/Documents/Flux/shaders/cube.frag.spv");
 	if(createShaderModuleResultFrag != VK_SUCCESS){
 		fprintf(stderr, "Failed to create Shader Module for .frag file.\n");
 		fprintf(stderr, "VkResult code: %d\n", createShaderModuleResultFrag);
@@ -131,15 +143,15 @@ int main(){
 	VkPipeline pipeline;
 	VkPipelineLayout pipelineLayout;
 	VkViewport viewport;
-	viewport.width = extend.width;
-	viewport.height = extend.height;
+	viewport.width = extent.width;
+	viewport.height = extent.height;
 	viewport.x = 0.0f;
 	viewport.y = 0.0f;
 	viewport.minDepth = 0.0f;
 	viewport.maxDepth = 1.0f;
 	VkRect2D scissors;
 	scissors.offset = {0, 0};
-	scissors.extent = extend;
+	scissors.extent = extent;
 	VkResult createPipelineResult = createPipeline(&pipeline, &renderPass, &logicalDevice, &pipelineLayout, &shaderModuleVert, &shaderModuleFrag, &viewport, &scissors);
 	if(createPipelineResult != VK_SUCCESS){
 		fprintf(stderr, "Failed to create Pipeline.\n");
@@ -157,9 +169,30 @@ int main(){
 		return 1;
 	}
 
+	VkBuffer vertexBuffer;
+	VkDeviceMemory vertexDeviceMemory;
+	VkResult createVertexBufferResult = createVertexBuffer(&logicalDevice, &physicalDevice, &vertexBuffer, &vertexDeviceMemory);
+	if(createVertexBufferResult != VK_SUCCESS){
+		fprintf(stderr, "Failed to create Vertex Buffer.\n");
+		fprintf(stderr, "VkResult code: %d\n", createVertexBufferResult);
+		return 1;
+	}
+
+	VkBuffer indexBuffer;
+	VkDeviceMemory indexDeviceMemory;
+	VkResult createIndexBufferResult = createIndexBuffer(&logicalDevice, &physicalDevice, &indexBuffer, &indexDeviceMemory);
+	if(createIndexBufferResult != VK_SUCCESS){
+		fprintf(stderr, "Failed to create Index Buffer.\n");
+		fprintf(stderr, "VkResult code: %d\n", createIndexBufferResult);
+		return 1;
+	}
+
 	uint32_t imageIndex = 0;
 	uint32_t currentFrame = 0;
-	VkClearValue clearColor = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
+	VkDeviceSize deviceSize = 0;
+	std::array<VkClearValue, 2> clearValues = {};
+	clearValues[0] = {0.0f, 0.0f, 0.0f, 1.0f};
+	clearValues[1] = {1.0f, 0};
 	while(!glfwWindowShouldClose(window)){
 		glfwPollEvents();
 		vkWaitForFences(logicalDevice, 1, &frameFence, VK_TRUE, UINT64_MAX); //Infinite wait
@@ -174,11 +207,13 @@ int main(){
 		renderPassBeginInfo.renderPass = renderPass;
 		renderPassBeginInfo.framebuffer = frameBuffers[imageIndex];
 		renderPassBeginInfo.renderArea = scissors;
-		renderPassBeginInfo.clearValueCount = 1;
-		renderPassBeginInfo.pClearValues = &clearColor;
+		renderPassBeginInfo.clearValueCount = 2;
+		renderPassBeginInfo.pClearValues = clearValues.data();
 		vkCmdBeginRenderPass(commandBuffers[imageIndex], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 		vkCmdBindPipeline(commandBuffers[imageIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-		vkCmdDraw(commandBuffers[imageIndex], 3, 1, 0, 0);
+		vkCmdBindVertexBuffers(commandBuffers[imageIndex], 0, 1, &vertexBuffer, &deviceSize);
+		vkCmdBindIndexBuffer(commandBuffers[imageIndex], indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+		vkCmdDrawIndexed(commandBuffers[imageIndex], 36, 1, 0, 0, 0);
 		vkCmdEndRenderPass(commandBuffers[imageIndex]);
 		vkEndCommandBuffer(commandBuffers[imageIndex]);
 		VkSubmitInfo submitInfo {};
@@ -204,6 +239,15 @@ int main(){
 		currentFrame = (currentFrame + 1) % imageSemaphores.size();
 	}
 
+	vkDeviceWaitIdle(logicalDevice); //Waits for GPU work to finish before destroying anything
+
+	vkDestroyImage(logicalDevice, depthImage, nullptr);
+	vkFreeMemory(logicalDevice, depthDeviceMemory, nullptr);
+	vkDestroyImageView(logicalDevice, depthImageView, nullptr);
+	vkDestroyBuffer(logicalDevice, indexBuffer, nullptr);
+	vkFreeMemory(logicalDevice, indexDeviceMemory, nullptr);
+	vkDestroyBuffer(logicalDevice, vertexBuffer, nullptr);
+	vkFreeMemory(logicalDevice, vertexDeviceMemory, nullptr);
 	for(VkSemaphore imageSemaphore : imageSemaphores){
 		vkDestroySemaphore(logicalDevice, imageSemaphore, nullptr);
 	}

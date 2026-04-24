@@ -16,6 +16,9 @@ Framebuffer(x) → binds RenderPass + ImageView(x)
 Swapchain → owns Image(x)
 
 
+Queue families are about what types of work the GPU can execute and where.
+
+
 #Vulkan
 In Vulkan, the graphics pipeline has several stages. Some are fixed-function — you configure them but can't change the logic. 
 Some are programmable — you write shader code that runs on the GPU.
@@ -52,3 +55,28 @@ vkCmdBindPipeline — bind the graphics pipeline
 vkCmdDraw — draw 3 vertices (your hardcoded triangle)
 vkCmdEndRenderPass — end the render pass
 vkEndCommandBuffer — stop recording
+
+
+frustum culling - Frustum culling is a solution to this problem wherein we identify which primitives are actually relevant to the 
+current view by performing intersection checks against the view frustum. 
+
+greedy meshing — merging adjacent faces of the same material into larger quads, eliminating interior faces entirely. 
+In a dense world, the vast majority of faces are hidden. Only the surface faces matter.
+
+without depth testing, whatever is drawn last wins. A back face of the cube could render on top of a front face simply 
+because it was drawn after it. The result is visually broken — faces flickering and overlapping incorrectly depending on draw order.
+Depth testing solves this by keeping a depth buffer — a texture that stores the depth of each pixel. 
+Before writing a fragment, it checks: is this fragment closer than what's already there? If not, discard it.
+
+
+The vertex shader receives from the buffer, the fragment shader receives from the vertex shader.
+In homogeneous coordinates, w is a scaling factor. For a regular 3D position, w = 1.0 — it means "this is a point, not a direction." When w = 0 it represents a direction vector instead.
+
+
+X: right is positive
+Y: down is positive (opposite of OpenGL)
+Z: into the screen is positive (0 at near, 1 at far)
+
+
+
+Culling means the GPU skips drawing that face entirely — it's discarded before rasterization.
