@@ -233,6 +233,14 @@ int main(){
 	std::array<VkClearValue, 2> clearValues = {};
 	clearValues[0] = {0.0f, 0.0f, 0.0f, 1.0f};
 	clearValues[1] = {1.0f, 0};
+	float speed = 0.0005f;
+	glm::vec3 eye = glm::vec3(2.0f, -2.0f, 2.0f);
+	glm::vec3 direction = glm::normalize(glm::vec3(-1.0f, 1.0f, -1.0f));
+	glm::mat4 view;
+	float yaw = 0, pitch = 0;
+	double lastX = 0, lastY = 0, currentX = 0, currentY = 0;
+	float sensitivity = 0.001f;
+	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 	while(!glfwWindowShouldClose(window)){
 		glfwPollEvents();
 		vkWaitForFences(logicalDevice, 1, &frameFence, VK_TRUE, UINT64_MAX); //Infinite wait
@@ -249,9 +257,43 @@ int main(){
 		renderPassBeginInfo.renderArea = scissors;
 		renderPassBeginInfo.clearValueCount = 2;
 		renderPassBeginInfo.pClearValues = clearValues.data();
+		int w = glfwGetKey(window, GLFW_KEY_W);
+		int s = glfwGetKey(window, GLFW_KEY_S);
+		int a = glfwGetKey(window, GLFW_KEY_A);
+		int d = glfwGetKey(window, GLFW_KEY_D);
+		int space = glfwGetKey(window, GLFW_KEY_SPACE);
+		int shift = glfwGetKey(window, GLFW_KEY_LEFT_SHIFT);
+		glfwGetCursorPos(window, &currentX, &currentY);
+		yaw += (currentX - lastX) * -sensitivity;
+		pitch += (currentY - lastY) * sensitivity;
+		pitch = glm::clamp(pitch, -1.55f, 1.55f);
+		direction.x = cos(yaw) * cos(pitch);
+		direction.y = sin(pitch);
+		direction.z = sin(yaw) * cos(pitch);
+		lastX = currentX;
+		lastY = currentY;
+		glm::vec3 flatDirection = glm::normalize(glm::vec3(direction.x, 0.0f, direction.z));
+		if(w == GLFW_PRESS){
+			eye += flatDirection * speed;	
+		}
+		else if(s == GLFW_PRESS){
+			eye -= flatDirection * speed;
+		}
+		if(a == GLFW_PRESS){
+			eye += glm::normalize(glm::cross(glm::vec3(0.0f, -1.0f, 0.0f), direction)) * speed;
+		}
+		else if(d == GLFW_PRESS){
+			eye += glm::normalize(glm::cross(direction, glm::vec3(0.0f, -1.0f, 0.0f))) * speed;
+		}
+		if(space == GLFW_PRESS){
+			eye += glm::vec3(0.0f, -1.0f, 0.0f) * speed;
+		}
+		else if(shift == GLFW_PRESS){
+			eye += glm::vec3(0.0f, 1.0f, 0.0f) * speed;
+		}
 		UniformBuffer ubo;
 		glm::mat4 projection = glm::perspective(glm::radians(45.0f), extent.width / (float)extent.height, 0.1f, 10.0f);
-		glm::mat4 view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f, 0.0f));
+		view = glm::lookAt(eye, eye + direction, glm::vec3(0.0f, -1.0f, 0.0f));
 		projection[1][1] *= -1;
 		ubo.Projection = projection;
 		ubo.View = view;
