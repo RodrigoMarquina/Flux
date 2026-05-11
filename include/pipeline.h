@@ -6,4 +6,4 @@
 #include <vector>
 #include <array>
 
-VkResult createPipeline(VkPipeline* pipeline, VkRenderPass* renderPass, VkDevice* logicalDevice, VkPipelineLayout* pipelineLayout, VkShaderModule* shaderModuleVert, VkShaderModule* shaderModuleFrag, VkViewport* viewport, VkRect2D* scissors);
+VkResult createPipeline(VkPipeline* pipeline, VkRenderPass* renderPass, VkDevice* logicalDevice, VkPipelineLayout* pipelineLayout, VkShaderModule* shaderModuleVert, VkShaderModule* shaderModuleFrag, VkViewport* viewport, VkRect2D* scissors, VkDescriptorSetLayout* descriptorSetLayout);

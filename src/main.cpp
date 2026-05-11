@@ -14,6 +14,10 @@
 #include "sync_objects.h"
 #include "vertex_buffer.h"
 #include "depth_buffer.h"
+#include "uniform_buffer.h"
+#include "descriptor_set.h"
+
+#include <glm/gtc/matrix_transform.hpp>
 
 int main(){
 	if(!glfwInit()){
@@ -120,7 +124,7 @@ int main(){
 		fprintf(stderr, "Failed to allocate Command Buffers.\n");
 		fprintf(stderr, "VkResult code: %d\n", allocateCommandBuffersResult);
 		return 1;
-	}
+	}	
 
 	//Vert file
 	VkShaderModule shaderModuleVert;
@@ -137,25 +141,6 @@ int main(){
 	if(createShaderModuleResultFrag != VK_SUCCESS){
 		fprintf(stderr, "Failed to create Shader Module for .frag file.\n");
 		fprintf(stderr, "VkResult code: %d\n", createShaderModuleResultFrag);
-		return 1;
-	}
-
-	VkPipeline pipeline;
-	VkPipelineLayout pipelineLayout;
-	VkViewport viewport;
-	viewport.width = extent.width;
-	viewport.height = extent.height;
-	viewport.x = 0.0f;
-	viewport.y = 0.0f;
-	viewport.minDepth = 0.0f;
-	viewport.maxDepth = 1.0f;
-	VkRect2D scissors;
-	scissors.offset = {0, 0};
-	scissors.extent = extent;
-	VkResult createPipelineResult = createPipeline(&pipeline, &renderPass, &logicalDevice, &pipelineLayout, &shaderModuleVert, &shaderModuleFrag, &viewport, &scissors);
-	if(createPipelineResult != VK_SUCCESS){
-		fprintf(stderr, "Failed to create Pipeline.\n");
-		fprintf(stderr, "VkResult code: %d\n", createPipelineResult);
 		return 1;
 	}
 
@@ -187,6 +172,61 @@ int main(){
 		return 1;
 	}
 
+	VkBuffer uniformBuffer;
+	VkDeviceMemory uniformDeviceMemory;
+	void* uniformMemoryMap;
+	VkResult createUniformBufferResult = createUniformBuffer(&logicalDevice, &physicalDevice, &uniformBuffer, &uniformDeviceMemory, &uniformMemoryMap);
+	if(createUniformBufferResult != VK_SUCCESS){
+		fprintf(stderr, "Failed to create uniform Buffer.\n");
+		fprintf(stderr, "VkResult code: %d\n", createUniformBufferResult);
+		return 1;
+	}
+
+	VkDescriptorSetLayout descriptorSetLayout;
+	VkResult createDescriptorLayoutResult = createDescriptorLayout(&logicalDevice, &descriptorSetLayout);
+	if(createDescriptorLayoutResult != VK_SUCCESS){
+		fprintf(stderr, "Failed to create the Descriptor Layout.\n");
+		fprintf(stderr, "VkResult code: %d\n", createDescriptorLayoutResult);
+		return 1;
+	}
+
+	VkDescriptorPool descriptorPool;
+	VkResult createDescriptorPoolResult = createDescriptorPool(&logicalDevice, &descriptorPool);
+	if(createDescriptorPoolResult != VK_SUCCESS){
+		fprintf(stderr, "Failed to create the Descriptor Pool.\n");
+		fprintf(stderr, "VkResult code: %d\n", createDescriptorPoolResult);
+		return 1;
+	}
+
+	VkDescriptorSet descriptorSet;
+	VkResult allocateDescriptorSetResult = allocateDescriptorSet(&logicalDevice, &descriptorPool, &descriptorSetLayout, &descriptorSet);
+	if(allocateDescriptorSetResult != VK_SUCCESS){
+		fprintf(stderr, "Failed to allocate the Descriptor Set.\n");
+		fprintf(stderr, "VkResult code: %d\n", allocateDescriptorSetResult);
+		return 1;
+	}
+
+	updateUniformBuffer(&logicalDevice, &descriptorSet, &uniformBuffer);
+
+	VkPipeline pipeline;
+	VkPipelineLayout pipelineLayout;
+	VkViewport viewport;
+	viewport.width = extent.width;
+	viewport.height = extent.height;
+	viewport.x = 0.0f;
+	viewport.y = 0.0f;
+	viewport.minDepth = 0.0f;
+	viewport.maxDepth = 1.0f;
+	VkRect2D scissors;
+	scissors.offset = {0, 0};
+	scissors.extent = extent;
+	VkResult createPipelineResult = createPipeline(&pipeline, &renderPass, &logicalDevice, &pipelineLayout, &shaderModuleVert, &shaderModuleFrag, &viewport, &scissors, &descriptorSetLayout);
+	if(createPipelineResult != VK_SUCCESS){
+		fprintf(stderr, "Failed to create Pipeline.\n");
+		fprintf(stderr, "VkResult code: %d\n", createPipelineResult);
+		return 1;
+	}
+
 	uint32_t imageIndex = 0;
 	uint32_t currentFrame = 0;
 	VkDeviceSize deviceSize = 0;
@@ -209,10 +249,18 @@ int main(){
 		renderPassBeginInfo.renderArea = scissors;
 		renderPassBeginInfo.clearValueCount = 2;
 		renderPassBeginInfo.pClearValues = clearValues.data();
+		UniformBuffer ubo;
+		glm::mat4 projection = glm::perspective(glm::radians(45.0f), extent.width / (float)extent.height, 0.1f, 10.0f);
+		glm::mat4 view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f, 0.0f));
+		projection[1][1] *= -1;
+		ubo.Projection = projection;
+		ubo.View = view;
+		memcpy(uniformMemoryMap, &ubo, sizeof(UniformBuffer));
 		vkCmdBeginRenderPass(commandBuffers[imageIndex], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 		vkCmdBindPipeline(commandBuffers[imageIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 		vkCmdBindVertexBuffers(commandBuffers[imageIndex], 0, 1, &vertexBuffer, &deviceSize);
 		vkCmdBindIndexBuffer(commandBuffers[imageIndex], indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+		vkCmdBindDescriptorSets(commandBuffers[imageIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
 		vkCmdDrawIndexed(commandBuffers[imageIndex], 36, 1, 0, 0, 0);
 		vkCmdEndRenderPass(commandBuffers[imageIndex]);
 		vkEndCommandBuffer(commandBuffers[imageIndex]);
@@ -241,6 +289,10 @@ int main(){
 
 	vkDeviceWaitIdle(logicalDevice); //Waits for GPU work to finish before destroying anything
 
+	vkDestroyDescriptorSetLayout(logicalDevice, descriptorSetLayout, nullptr);
+	vkDestroyDescriptorPool(logicalDevice, descriptorPool, nullptr);
+	vkDestroyBuffer(logicalDevice, uniformBuffer, nullptr);
+	vkFreeMemory(logicalDevice, uniformDeviceMemory, nullptr);
 	vkDestroyImage(logicalDevice, depthImage, nullptr);
 	vkFreeMemory(logicalDevice, depthDeviceMemory, nullptr);
 	vkDestroyImageView(logicalDevice, depthImageView, nullptr);

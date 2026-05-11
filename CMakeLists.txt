@@ -11,6 +11,8 @@ find_package(Vulkan REQUIRED)
 find_package(glm REQUIRED)
 
 add_executable(Flux
+    src/descriptor_set.cpp
+    src/uniform_buffer.cpp
     src/depth_buffer.cpp
     src/vertex_buffer.cpp
     src/vertex.cpp

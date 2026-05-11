@@ -1,0 +1,1 @@
+The shader module is a thin wrapper around the SPIR-V binary, it loads the compiled shader code into GPU memory so the pipeline can use it. Once the pipeline has extracted what it needs from the SPIR-V binary, the shader module is destroyed. 

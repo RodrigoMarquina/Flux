@@ -1,0 +1,1 @@
+Once we have created the renderpass and defined the attachments, we need to bind each image with these attachments, thats where framebuffers come in. They bundle the imageviews of each attachment into one for image and connects them to the renderpass slots.
