@@ -2,6 +2,7 @@
 
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec3 inColor;
+layout(location = 2) in vec3 inOrigin;
 
 layout(location = 0) out vec3 outColor;
 
@@ -12,6 +13,6 @@ layout(binding = 0) uniform UniformBuffer {
 } ubo;
 
 void main(){
-    gl_Position = vec4(inPosition, 1.0);
+    gl_Position = ubo.projection * ubo.view * ubo.model * vec4(inPosition + inOrigin, 1.0);
     outColor = inColor;
 }

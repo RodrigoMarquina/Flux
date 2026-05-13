@@ -12,11 +12,13 @@
 #include "shader_module.h"
 #include "pipeline.h"
 #include "sync_objects.h"
+#include "vertex.h"
 #include "vertex_buffer.h"
 #include "depth_buffer.h"
 #include "uniform_buffer.h"
 #include "descriptor_set.h"
 
+#include <iostream>
 #include <glm/gtc/matrix_transform.hpp>
 
 int main(){
@@ -172,6 +174,17 @@ int main(){
 		return 1;
 	}
 
+	initializeGrid();
+
+	VkBuffer instanceBuffer;
+	VkDeviceMemory instanceDeviceMemory;
+	VkResult createInstanceBufferResult = createInstanceBuffer(&logicalDevice, &physicalDevice, &instanceBuffer, &instanceDeviceMemory);
+	if(createInstanceBufferResult != VK_SUCCESS){
+		fprintf(stderr, "Failed to create Instance Buffer.\n");
+		fprintf(stderr, "VkResult code: %d\n", createInstanceBufferResult);
+		return 1;
+	}
+
 	VkBuffer uniformBuffer;
 	VkDeviceMemory uniformDeviceMemory;
 	void* uniformMemoryMap;
@@ -301,9 +314,10 @@ int main(){
 		vkCmdBeginRenderPass(commandBuffers[imageIndex], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 		vkCmdBindPipeline(commandBuffers[imageIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 		vkCmdBindVertexBuffers(commandBuffers[imageIndex], 0, 1, &vertexBuffer, &deviceSize);
+		vkCmdBindVertexBuffers(commandBuffers[imageIndex], 1, 1, &instanceBuffer, &deviceSize);
 		vkCmdBindIndexBuffer(commandBuffers[imageIndex], indexBuffer, 0, VK_INDEX_TYPE_UINT16);
 		vkCmdBindDescriptorSets(commandBuffers[imageIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
-		vkCmdDrawIndexed(commandBuffers[imageIndex], 36, 1, 0, 0, 0);
+		vkCmdDrawIndexed(commandBuffers[imageIndex], 36, cubes.size(), 0, 0, 0);
 		vkCmdEndRenderPass(commandBuffers[imageIndex]);
 		vkEndCommandBuffer(commandBuffers[imageIndex]);
 		VkSubmitInfo submitInfo {};
@@ -333,6 +347,8 @@ int main(){
 
 	vkDestroyDescriptorSetLayout(logicalDevice, descriptorSetLayout, nullptr);
 	vkDestroyDescriptorPool(logicalDevice, descriptorPool, nullptr);
+	vkDestroyBuffer(logicalDevice, instanceBuffer, nullptr);
+	vkFreeMemory(logicalDevice, instanceDeviceMemory, nullptr);
 	vkDestroyBuffer(logicalDevice, uniformBuffer, nullptr);
 	vkFreeMemory(logicalDevice, uniformDeviceMemory, nullptr);
 	vkDestroyImage(logicalDevice, depthImage, nullptr);

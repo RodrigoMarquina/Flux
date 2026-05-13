@@ -18,6 +18,19 @@ std::array<uint16_t, 36> indexArray = {4, 1, 0, 4, 0, 2, //Front 4, 1, 0, 4, 0, 
                                        0, 3, 5, 0, 5, 1, //Bottom 0, 3, 5, 0, 5, 1
                                        6, 2, 4, 6, 4, 7}; //Top 
 
+std::vector<Cube> cubes;
+void initializeGrid(int gridSize){
+    for(int i = 0; i < gridSize; i++){
+        for(int j = 0; j < gridSize; j++){
+            for(int k = 0; k < gridSize; k++){
+                Cube cubeInstance;
+                cubeInstance.origin = glm::vec3(i, j, k);
+                cubes.push_back(cubeInstance);
+            }
+        }
+    }
+}
+
 //0: ( 0.5,  0.5,  0.5)
 //1: (-0.5,  0.5,  0.5)
 //2: ( 0.5, -0.5,  0.5)

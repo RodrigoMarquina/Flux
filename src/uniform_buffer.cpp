@@ -37,7 +37,10 @@ VkResult createUniformBuffer(VkDevice* logicalDevice, VkPhysicalDevice* physical
         return bindBufferMemoryResult;
     }
 
-    vkMapMemory(*logicalDevice, *uniformDeviceMemory, 0, memoryRequirements.size, 0, memoryMap);
+    VkResult mapMemoryResult = vkMapMemory(*logicalDevice, *uniformDeviceMemory, 0, memoryRequirements.size, 0, memoryMap);
+    if(mapMemoryResult != VK_SUCCESS){
+        return mapMemoryResult;
+    }
 
     return bindBufferMemoryResult;
 }
