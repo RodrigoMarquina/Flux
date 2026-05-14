@@ -97,7 +97,7 @@ VkResult createIndexBuffer(VkDevice* logicalDevice, VkPhysicalDevice* physicalDe
     return bindBufferMemoryResult;
 }
 
-VkResult createInstanceBuffer(VkDevice* logicalDevice, VkPhysicalDevice* physicalDevice, VkBuffer* instanceBuffer, VkDeviceMemory* instanceDeviceMemory){
+VkResult createInstanceBuffer(VkDevice* logicalDevice, VkPhysicalDevice* physicalDevice, VkBuffer* instanceBuffer, VkDeviceMemory* instanceDeviceMemory, void** memoryMap){
     VkBufferCreateInfo bufferCreateInfo {};
     bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bufferCreateInfo.size = sizeof(Cube) * cubes.size();
@@ -134,14 +134,10 @@ VkResult createInstanceBuffer(VkDevice* logicalDevice, VkPhysicalDevice* physica
         return bindBufferMemoryResult;
     }
 
-    void* memoryMap;
-    VkResult mapMemoryResult = vkMapMemory(*logicalDevice, *instanceDeviceMemory, 0, memoryRequirements.size, 0, &memoryMap);
+    VkResult mapMemoryResult = vkMapMemory(*logicalDevice, *instanceDeviceMemory, 0, memoryRequirements.size, 0, memoryMap);
     if(mapMemoryResult != VK_SUCCESS){
         return mapMemoryResult;
     }
-
-    memcpy(memoryMap, cubes.data(), sizeof(Cube) * cubes.size());
-    vkUnmapMemory(*logicalDevice, *instanceDeviceMemory);
 
     return bindBufferMemoryResult;
 }

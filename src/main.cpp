@@ -17,9 +17,11 @@
 #include "depth_buffer.h"
 #include "uniform_buffer.h"
 #include "descriptor_set.h"
+#include "frustum.h"
 
 #include <iostream>
 #include <glm/gtc/matrix_transform.hpp>
+#include <vector>
 
 int main(){
 	if(!glfwInit()){
@@ -178,7 +180,8 @@ int main(){
 
 	VkBuffer instanceBuffer;
 	VkDeviceMemory instanceDeviceMemory;
-	VkResult createInstanceBufferResult = createInstanceBuffer(&logicalDevice, &physicalDevice, &instanceBuffer, &instanceDeviceMemory);
+	void* instanceMemoryMap;
+	VkResult createInstanceBufferResult = createInstanceBuffer(&logicalDevice, &physicalDevice, &instanceBuffer, &instanceDeviceMemory, &instanceMemoryMap);
 	if(createInstanceBufferResult != VK_SUCCESS){
 		fprintf(stderr, "Failed to create Instance Buffer.\n");
 		fprintf(stderr, "VkResult code: %d\n", createInstanceBufferResult);
@@ -243,6 +246,8 @@ int main(){
 	uint32_t imageIndex = 0;
 	uint32_t currentFrame = 0;
 	VkDeviceSize deviceSize = 0;
+	std::array<glm::vec4, 6> frustum;
+	std::vector<Cube> visibleCubes;
 	std::array<VkClearValue, 2> clearValues = {};
 	clearValues[0] = {0.0f, 0.0f, 0.0f, 1.0f};
 	clearValues[1] = {1.0f, 0};
@@ -310,6 +315,16 @@ int main(){
 		projection[1][1] *= -1;
 		ubo.Projection = projection;
 		ubo.View = view;
+		visibleCubes.clear();
+		glm::mat4 VP = projection * view;
+		frustum = getFrustum(VP);
+		for(Cube& cube : cubes){
+			if(isChunkVisible(frustum, cube.origin, 1.0f)){
+				visibleCubes.push_back(cube);
+			}
+		}
+		std::cout << visibleCubes.size() << "\n";
+		memcpy(instanceMemoryMap, visibleCubes.data(), sizeof(Cube) * visibleCubes.size());
 		memcpy(uniformMemoryMap, &ubo, sizeof(UniformBuffer));
 		vkCmdBeginRenderPass(commandBuffers[imageIndex], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 		vkCmdBindPipeline(commandBuffers[imageIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);

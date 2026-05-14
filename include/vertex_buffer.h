@@ -9,4 +9,4 @@ VkResult createVertexBuffer(VkDevice* logicalDevice, VkPhysicalDevice* physicalD
 
 VkResult createIndexBuffer(VkDevice* logicalDevice, VkPhysicalDevice* physicalDevice, VkBuffer* indexBuffer, VkDeviceMemory* indexDeviceMemory);
 
-VkResult createInstanceBuffer(VkDevice* logicalDevice, VkPhysicalDevice* physicalDevice, VkBuffer* instanceBuffer, VkDeviceMemory* instanceDeviceMemory);
+VkResult createInstanceBuffer(VkDevice* logicalDevice, VkPhysicalDevice* physicalDevice, VkBuffer* instanceBuffer, VkDeviceMemory* instanceDeviceMemory,  void** memoryMap);

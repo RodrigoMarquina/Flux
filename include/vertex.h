@@ -19,4 +19,4 @@ extern std::array<uint16_t, 36> indexArray;
 
 extern std::vector<Cube> cubes;
 
-void initializeGrid(int gridSize = 500);
+void initializeGrid(int gridSize = 10);
