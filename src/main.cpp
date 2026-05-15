@@ -18,6 +18,8 @@
 #include "uniform_buffer.h"
 #include "descriptor_set.h"
 #include "frustum.h"
+#include "chunk.h"
+#include "world.h"
 
 #include <iostream>
 #include <glm/gtc/matrix_transform.hpp>
@@ -176,16 +178,10 @@ int main(){
 		return 1;
 	}
 
-	initializeGrid();
-
-	VkBuffer instanceBuffer;
-	VkDeviceMemory instanceDeviceMemory;
-	void* instanceMemoryMap;
-	VkResult createInstanceBufferResult = createInstanceBuffer(&logicalDevice, &physicalDevice, &instanceBuffer, &instanceDeviceMemory, &instanceMemoryMap);
-	if(createInstanceBufferResult != VK_SUCCESS){
-		fprintf(stderr, "Failed to create Instance Buffer.\n");
-		fprintf(stderr, "VkResult code: %d\n", createInstanceBufferResult);
-		return 1;
+	generateWorld();
+	for(Chunk& chunk : chunks){
+		createChunkBuffer(&logicalDevice, &physicalDevice, chunk); 
+		memcpy(chunk.memoryMap, chunk.voxels.data(), sizeof(Cube) * chunk.voxels.size());
 	}
 
 	VkBuffer uniformBuffer;
@@ -247,11 +243,10 @@ int main(){
 	uint32_t currentFrame = 0;
 	VkDeviceSize deviceSize = 0;
 	std::array<glm::vec4, 6> frustum;
-	std::vector<Cube> visibleCubes;
 	std::array<VkClearValue, 2> clearValues = {};
 	clearValues[0] = {0.0f, 0.0f, 0.0f, 1.0f};
 	clearValues[1] = {1.0f, 0};
-	float speed = 0.0005f;
+	float speed = 0.005f;
 	glm::vec3 eye = glm::vec3(2.0f, -2.0f, 2.0f);
 	glm::vec3 direction = glm::normalize(glm::vec3(-1.0f, 1.0f, -1.0f));
 	glm::mat4 view;
@@ -310,29 +305,25 @@ int main(){
 			eye += glm::vec3(0.0f, 1.0f, 0.0f) * speed;
 		}
 		UniformBuffer ubo;
-		glm::mat4 projection = glm::perspective(glm::radians(45.0f), extent.width / (float)extent.height, 0.1f, 10.0f);
+		glm::mat4 projection = glm::perspective(glm::radians(45.0f), extent.width / (float)extent.height, 0.1f, 100.0f);
 		view = glm::lookAt(eye, eye + direction, glm::vec3(0.0f, -1.0f, 0.0f));
 		projection[1][1] *= -1;
 		ubo.Projection = projection;
 		ubo.View = view;
-		visibleCubes.clear();
-		glm::mat4 VP = projection * view;
-		frustum = getFrustum(VP);
-		for(Cube& cube : cubes){
-			if(isChunkVisible(frustum, cube.origin, 1.0f)){
-				visibleCubes.push_back(cube);
-			}
-		}
-		std::cout << visibleCubes.size() << "\n";
-		memcpy(instanceMemoryMap, visibleCubes.data(), sizeof(Cube) * visibleCubes.size());
 		memcpy(uniformMemoryMap, &ubo, sizeof(UniformBuffer));
 		vkCmdBeginRenderPass(commandBuffers[imageIndex], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 		vkCmdBindPipeline(commandBuffers[imageIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 		vkCmdBindVertexBuffers(commandBuffers[imageIndex], 0, 1, &vertexBuffer, &deviceSize);
-		vkCmdBindVertexBuffers(commandBuffers[imageIndex], 1, 1, &instanceBuffer, &deviceSize);
 		vkCmdBindIndexBuffer(commandBuffers[imageIndex], indexBuffer, 0, VK_INDEX_TYPE_UINT16);
 		vkCmdBindDescriptorSets(commandBuffers[imageIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
-		vkCmdDrawIndexed(commandBuffers[imageIndex], 36, cubes.size(), 0, 0, 0);
+		glm::mat4 VP = projection * view;
+		frustum = getFrustum(VP);
+		for(Chunk& chunk : chunks){
+			if(isChunkVisible(frustum, chunk.position, chunk.size)){
+				vkCmdBindVertexBuffers(commandBuffers[imageIndex], 1, 1, &chunk.chunkBuffer, &deviceSize);
+				vkCmdDrawIndexed(commandBuffers[imageIndex], 36, chunk.voxels.size(), 0, 0, 0);
+			}
+		}
 		vkCmdEndRenderPass(commandBuffers[imageIndex]);
 		vkEndCommandBuffer(commandBuffers[imageIndex]);
 		VkSubmitInfo submitInfo {};
@@ -362,8 +353,10 @@ int main(){
 
 	vkDestroyDescriptorSetLayout(logicalDevice, descriptorSetLayout, nullptr);
 	vkDestroyDescriptorPool(logicalDevice, descriptorPool, nullptr);
-	vkDestroyBuffer(logicalDevice, instanceBuffer, nullptr);
-	vkFreeMemory(logicalDevice, instanceDeviceMemory, nullptr);
+	for(Chunk& chunk : chunks){
+		vkDestroyBuffer(logicalDevice, chunk.chunkBuffer, nullptr);
+		vkFreeMemory(logicalDevice, chunk.chunkMemory, nullptr);
+	}
 	vkDestroyBuffer(logicalDevice, uniformBuffer, nullptr);
 	vkFreeMemory(logicalDevice, uniformDeviceMemory, nullptr);
 	vkDestroyImage(logicalDevice, depthImage, nullptr);
