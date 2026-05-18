@@ -37,3 +37,12 @@ Objects close to the camera need precise depth values to avoid z-fighting, two s
 
 This non-linear mapping is a consequence of how perspective projection works mathematically, it falls out naturally from the math, it's not a deliberate choice.
 
+## Gribb-Hartmann method
+
+Left plane: row4 + row1
+Right plane: row4 - row1
+Bottom plane: row4 + row2
+Top plane: row4 - row2
+Near plane: row4 + row3 (Vulkan depth is 0 to 1, not -1 to 1)
+Far plane: row4 - row3
+

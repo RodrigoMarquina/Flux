@@ -4,7 +4,7 @@
 VkResult createVertexBuffer(VkDevice* logicalDevice, VkPhysicalDevice* physicalDevice, VkBuffer* vertexBuffer, VkDeviceMemory* vertexDeviceMemory){
     VkBufferCreateInfo bufferCreateInfo {};
     bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferCreateInfo.size = sizeof(cube);
+    bufferCreateInfo.size = sizeof(voxel);
     bufferCreateInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
     bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
@@ -43,7 +43,7 @@ VkResult createVertexBuffer(VkDevice* logicalDevice, VkPhysicalDevice* physicalD
     if(mapMemoryResult != VK_SUCCESS){
         return mapMemoryResult;
     }
-    memcpy(memoryMap, &cube, sizeof(cube));
+    memcpy(memoryMap, &voxel, sizeof(voxel));
     vkUnmapMemory(*logicalDevice, *vertexDeviceMemory);
 
     return bindBufferMemoryResult;
@@ -100,7 +100,7 @@ VkResult createIndexBuffer(VkDevice* logicalDevice, VkPhysicalDevice* physicalDe
 VkResult createInstanceBuffer(VkDevice* logicalDevice, VkPhysicalDevice* physicalDevice, VkBuffer* instanceBuffer, VkDeviceMemory* instanceDeviceMemory, void** memoryMap){
     VkBufferCreateInfo bufferCreateInfo {};
     bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferCreateInfo.size = sizeof(Cube) * cubes.size();
+    bufferCreateInfo.size = sizeof(Voxel) * voxels.size();
     bufferCreateInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
     bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 

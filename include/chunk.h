@@ -11,7 +11,7 @@ struct Chunk {
     float size;
     VkBuffer chunkBuffer;
     VkDeviceMemory chunkMemory;
-    std::vector<Cube> voxels;
+    std::vector<Voxel> voxels;
     void* memoryMap;
 };
 

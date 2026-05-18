@@ -25,7 +25,7 @@ VkResult createPipeline(VkPipeline* pipeline, VkRenderPass* renderPass, VkDevice
 
     VkVertexInputBindingDescription instanceInputBindingDescription {};
     instanceInputBindingDescription.binding = 1;
-    instanceInputBindingDescription.stride = sizeof(Cube);
+    instanceInputBindingDescription.stride = sizeof(Voxel);
     instanceInputBindingDescription.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
 
     VkVertexInputAttributeDescription vertexInputAttributeDescription1 {};

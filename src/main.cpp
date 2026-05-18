@@ -24,6 +24,7 @@
 #include <iostream>
 #include <glm/gtc/matrix_transform.hpp>
 #include <vector>
+#include <chrono>
 
 int main(){
 	if(!glfwInit()){
@@ -181,7 +182,7 @@ int main(){
 	generateWorld();
 	for(Chunk& chunk : chunks){
 		createChunkBuffer(&logicalDevice, &physicalDevice, chunk); 
-		memcpy(chunk.memoryMap, chunk.voxels.data(), sizeof(Cube) * chunk.voxels.size());
+		memcpy(chunk.memoryMap, chunk.voxels.data(), sizeof(Voxel) * chunk.voxels.size());
 	}
 
 	VkBuffer uniformBuffer;
@@ -252,9 +253,12 @@ int main(){
 	glm::mat4 view;
 	float yaw = 0, pitch = 0;
 	double lastX = 0, lastY = 0, currentX = 0, currentY = 0;
+	std::chrono::high_resolution_clock::time_point lastTime, currentTime;
+	int visibleChunks = 0;
 	float sensitivity = 0.001f;
 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 	while(!glfwWindowShouldClose(window)){
+		lastTime = std::chrono::high_resolution_clock::now();
 		glfwPollEvents();
 		vkWaitForFences(logicalDevice, 1, &frameFence, VK_TRUE, UINT64_MAX); //Infinite wait
 		vkResetFences(logicalDevice, 1, &frameFence);
@@ -318,10 +322,12 @@ int main(){
 		vkCmdBindDescriptorSets(commandBuffers[imageIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
 		glm::mat4 VP = projection * view;
 		frustum = getFrustum(VP);
+		visibleChunks = 0;
 		for(Chunk& chunk : chunks){
 			if(isChunkVisible(frustum, chunk.position, chunk.size)){
 				vkCmdBindVertexBuffers(commandBuffers[imageIndex], 1, 1, &chunk.chunkBuffer, &deviceSize);
 				vkCmdDrawIndexed(commandBuffers[imageIndex], 36, chunk.voxels.size(), 0, 0, 0);
+				visibleChunks++;
 			}
 		}
 		vkCmdEndRenderPass(commandBuffers[imageIndex]);
@@ -347,6 +353,9 @@ int main(){
 		presentInfoKHR.pImageIndices = &imageIndex;
 		vkQueuePresentKHR(queueHandle, &presentInfoKHR);
 		currentFrame = (currentFrame + 1) % imageSemaphores.size();
+		currentTime = std::chrono::high_resolution_clock::now();
+		std::cout << "FPS: " << 1 / std::chrono::duration<float>(currentTime - lastTime).count() << "\n";
+		std::cout << "Total Chunks: " << chunks.size() << " / Visible Chunks: " << visibleChunks << "\n";
 	}
 
 	vkDeviceWaitIdle(logicalDevice); //Waits for GPU work to finish before destroying anything

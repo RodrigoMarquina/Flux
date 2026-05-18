@@ -1,6 +1,6 @@
 #include "vertex.h"
 
-std::array<Vertex, 8> cube = {{ //Position and color for each vertex
+std::array<Vertex, 8> voxel = {{ //Position and color for each vertex
 {{0.5f, 0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}, 
 {{-0.5f, 0.5f, 0.5f}, {0.0f, 1.0f, 1.0f}}, 
 {{0.5f, -0.5f, 0.5f}, {1.0f, 0.0f, 1.0f}}, 
@@ -18,14 +18,14 @@ std::array<uint16_t, 36> indexArray = {4, 1, 0, 4, 0, 2, //Front 4, 1, 0, 4, 0, 
                                        0, 3, 5, 0, 5, 1, //Bottom 0, 3, 5, 0, 5, 1
                                        6, 2, 4, 6, 4, 7}; //Top 
 
-std::vector<Cube> cubes;
+std::vector<Voxel> voxels;
 void initializeGrid(int gridSize){
     for(int i = 0; i < gridSize; i++){
         for(int j = 0; j < gridSize; j++){
             for(int k = 0; k < gridSize; k++){
-                Cube cubeInstance;
-                cubeInstance.origin = glm::vec3(i, j, k);
-                cubes.push_back(cubeInstance);
+                Voxel voxelInstance;
+                voxelInstance.origin = glm::vec3(i, j, k);
+                voxels.push_back(voxelInstance);
             }
         }
     }

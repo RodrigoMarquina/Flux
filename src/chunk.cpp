@@ -4,7 +4,7 @@ void initializeChunk(Chunk& chunk){
     for(int i = 0; i < chunk.voxelCount; i++){
         for(int j = 0; j < chunk.voxelCount; j++){
             for(int k = 0; k < chunk.voxelCount; k++){
-                Cube voxel;
+                Voxel voxel;
                 voxel.origin = chunk.position + glm::vec3(i, j, k) * (chunk.size / chunk.voxelCount);
                 chunk.voxels.push_back(voxel);
             }
@@ -15,7 +15,7 @@ void initializeChunk(Chunk& chunk){
 VkResult createChunkBuffer(VkDevice* logicalDevice, VkPhysicalDevice* physicalDevice, Chunk& chunk){
     VkBufferCreateInfo bufferCreateInfo {};
     bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferCreateInfo.size = sizeof(Cube) * chunk.voxels.size();
+    bufferCreateInfo.size = sizeof(Voxel) * chunk.voxels.size();
     bufferCreateInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
     bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
