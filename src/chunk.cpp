@@ -4,9 +4,11 @@ void initializeChunk(Chunk& chunk){
     for(int i = 0; i < chunk.voxelCount; i++){
         for(int j = 0; j < chunk.voxelCount; j++){
             for(int k = 0; k < chunk.voxelCount; k++){
-                Voxel voxel;
-                voxel.origin = chunk.position + glm::vec3(i, j, k) * (chunk.size / chunk.voxelCount);
-                chunk.voxels.push_back(voxel);
+                if(i == 0 || i == chunk.voxelCount-1 || j == 0 || j == chunk.voxelCount-1 || k == 0 || k == chunk.voxelCount-1){
+                    Voxel voxel;
+                    voxel.origin = chunk.position + glm::vec3(i, j, k) * (chunk.size / chunk.voxelCount);
+                    chunk.voxels.push_back(voxel);
+                }
             }
         }
     }

@@ -68,6 +68,12 @@ glslc shaders/cube.frag -o shaders/cube.frag.spv
 ```
  
 ---
+
+## Open Architectural Questions
+
+**View distance & LOD.** Naively simulating and rendering every voxel at full resolution regardless of distance caps view distance hard (see: Minecraft). The direction that fits FLUX's philosophy is reduced voxel resolution at distance — fewer, larger effective voxels the further a chunk is from the player — applied to *both* simulation and rendering, not a rendering-only trick bolted on top (Nanite-style clustering doesn't fit since it assumes static geometry; Distant Horizons-style secondary LOD meshes fight the base architecture instead of being native to it). This extends the active-list/sleeping-chunk concept to resolution as well as activity. To be decided once the chunk/voxel data model is settled — likely a Phase 3+ concern.
+
+---
  
 ## Learning Methodology
  

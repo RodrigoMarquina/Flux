@@ -15,8 +15,8 @@ std::array<uint16_t, 36> indexArray = {4, 1, 0, 4, 0, 2, //Front 4, 1, 0, 4, 0, 
                                        6, 3, 5, 6, 5, 7, //Back 6, 3, 5, 6, 5, 7 - (0, 0, -2)
                                        2, 0, 3, 2, 3, 6, //Right 2, 0, 3, 2, 3, 6 - (2, 0, 0) *inverted
                                        7, 5, 1, 7, 1, 4, //Left 7, 5, 1, 7, 1, 4 - (-2, 0, 0) *inverted
-                                       0, 3, 5, 0, 5, 1, //Bottom 0, 3, 5, 0, 5, 1
-                                       6, 2, 4, 6, 4, 7}; //Top 
+                                       5, 3, 0, 5, 0, 1, //Bottom
+                                       4, 2, 6, 4, 6, 7}; //Top 
 
 std::vector<Voxel> voxels;
 void initializeGrid(int gridSize){

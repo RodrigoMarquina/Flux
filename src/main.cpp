@@ -255,6 +255,7 @@ int main(){
 	double lastX = 0, lastY = 0, currentX = 0, currentY = 0;
 	std::chrono::high_resolution_clock::time_point lastTime, currentTime;
 	int visibleChunks = 0;
+	int totalVoxels = 0;
 	float sensitivity = 0.001f;
 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 	while(!glfwWindowShouldClose(window)){
@@ -323,12 +324,14 @@ int main(){
 		glm::mat4 VP = projection * view;
 		frustum = getFrustum(VP);
 		visibleChunks = 0;
+		totalVoxels = 0;
 		for(Chunk& chunk : chunks){
 			if(isChunkVisible(frustum, chunk.position, chunk.size)){
 				vkCmdBindVertexBuffers(commandBuffers[imageIndex], 1, 1, &chunk.chunkBuffer, &deviceSize);
 				vkCmdDrawIndexed(commandBuffers[imageIndex], 36, chunk.voxels.size(), 0, 0, 0);
 				visibleChunks++;
 			}
+			totalVoxels += chunk.voxels.size();
 		}
 		vkCmdEndRenderPass(commandBuffers[imageIndex]);
 		vkEndCommandBuffer(commandBuffers[imageIndex]);
@@ -356,6 +359,7 @@ int main(){
 		currentTime = std::chrono::high_resolution_clock::now();
 		std::cout << "FPS: " << 1 / std::chrono::duration<float>(currentTime - lastTime).count() << "\n";
 		std::cout << "Total Chunks: " << chunks.size() << " / Visible Chunks: " << visibleChunks << "\n";
+		std::cout << "Total Voxels: " << totalVoxels << "\n";
 	}
 
 	vkDeviceWaitIdle(logicalDevice); //Waits for GPU work to finish before destroying anything

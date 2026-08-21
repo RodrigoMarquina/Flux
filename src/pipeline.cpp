@@ -75,7 +75,7 @@ VkResult createPipeline(VkPipeline* pipeline, VkRenderPass* renderPass, VkDevice
     pipelineRasterizationStateCreateInfo.rasterizerDiscardEnable = VK_FALSE;
     pipelineRasterizationStateCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
     pipelineRasterizationStateCreateInfo.lineWidth = 1.0f;
-    pipelineRasterizationStateCreateInfo.cullMode = VK_CULL_MODE_NONE;
+    pipelineRasterizationStateCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
     pipelineRasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_CLOCKWISE; //Winding order
     pipelineRasterizationStateCreateInfo.depthBiasEnable = VK_FALSE;
 
