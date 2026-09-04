@@ -24,6 +24,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <vector>
 #include <chrono>
+#include <cstring>
 
 int main(){
 	if(!glfwInit()){
