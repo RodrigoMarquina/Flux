@@ -13,7 +13,6 @@
 #include "pipeline.h"
 #include "sync_objects.h"
 #include "vertex.h"
-#include "vertex_buffer.h"
 #include "depth_buffer.h"
 #include "uniform_buffer.h"
 #include "descriptor_set.h"
@@ -161,28 +160,17 @@ int main(){
 		return 1;
 	}
 
-	VkBuffer vertexBuffer;
-	VkDeviceMemory vertexDeviceMemory;
-	VkResult createVertexBufferResult = createVertexBuffer(&logicalDevice, &physicalDevice, &vertexBuffer, &vertexDeviceMemory);
-	if(createVertexBufferResult != VK_SUCCESS){
-		fprintf(stderr, "Failed to create Vertex Buffer.\n");
-		fprintf(stderr, "VkResult code: %d\n", createVertexBufferResult);
-		return 1;
-	}
-
-	VkBuffer indexBuffer;
-	VkDeviceMemory indexDeviceMemory;
-	VkResult createIndexBufferResult = createIndexBuffer(&logicalDevice, &physicalDevice, &indexBuffer, &indexDeviceMemory);
-	if(createIndexBufferResult != VK_SUCCESS){
-		fprintf(stderr, "Failed to create Index Buffer.\n");
-		fprintf(stderr, "VkResult code: %d\n", createIndexBufferResult);
-		return 1;
-	}
-
 	generateWorld();
+	VkResult createChunkBufferResult;
 	for(Chunk& chunk : chunks){
-		createChunkBuffer(&logicalDevice, &physicalDevice, chunk); 
-		memcpy(chunk.memoryMap, chunk.voxels.data(), sizeof(Voxel) * chunk.voxels.size());
+		fillFaceRenderList(chunk);
+		createChunkBufferResult = createChunkBuffer(&logicalDevice, &physicalDevice, chunk); 
+		if(createChunkBufferResult != VK_SUCCESS){
+			fprintf(stderr, "Failed to create chunk buffer.\n");
+			fprintf(stderr, "VkResult code: %d\n", createChunkBufferResult);
+			return 1;
+		}
+		memcpy(chunk.memoryMap, chunk.faceRenderList.data(), sizeof(FaceInstance) * chunk.faceRenderList.size());
 	}
 
 	VkBuffer uniformBuffer;
@@ -318,8 +306,6 @@ int main(){
 		memcpy(uniformMemoryMap, &ubo, sizeof(UniformBuffer));
 		vkCmdBeginRenderPass(commandBuffers[imageIndex], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 		vkCmdBindPipeline(commandBuffers[imageIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-		vkCmdBindVertexBuffers(commandBuffers[imageIndex], 0, 1, &vertexBuffer, &deviceSize);
-		vkCmdBindIndexBuffer(commandBuffers[imageIndex], indexBuffer, 0, VK_INDEX_TYPE_UINT16);
 		vkCmdBindDescriptorSets(commandBuffers[imageIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
 		glm::mat4 VP = projection * view;
 		frustum = getFrustum(VP);
@@ -328,10 +314,10 @@ int main(){
 		for(Chunk& chunk : chunks){
 			if(isChunkVisible(frustum, chunk.position, chunk.size)){
 				vkCmdBindVertexBuffers(commandBuffers[imageIndex], 1, 1, &chunk.chunkBuffer, &deviceSize);
-				vkCmdDrawIndexed(commandBuffers[imageIndex], 36, chunk.voxels.size(), 0, 0, 0);
+				vkCmdDraw(commandBuffers[imageIndex], verticesPerFace, chunk.faceRenderList.size(), 0, 0);
 				visibleChunks++;
 			}
-			totalVoxels += chunk.voxels.size();
+			totalVoxels += chunk.faceRenderList.size();
 		}
 		vkCmdEndRenderPass(commandBuffers[imageIndex]);
 		vkEndCommandBuffer(commandBuffers[imageIndex]);
@@ -375,10 +361,6 @@ int main(){
 	vkDestroyImage(logicalDevice, depthImage, nullptr);
 	vkFreeMemory(logicalDevice, depthDeviceMemory, nullptr);
 	vkDestroyImageView(logicalDevice, depthImageView, nullptr);
-	vkDestroyBuffer(logicalDevice, indexBuffer, nullptr);
-	vkFreeMemory(logicalDevice, indexDeviceMemory, nullptr);
-	vkDestroyBuffer(logicalDevice, vertexBuffer, nullptr);
-	vkFreeMemory(logicalDevice, vertexDeviceMemory, nullptr);
 	for(VkSemaphore imageSemaphore : imageSemaphores){
 		vkDestroySemaphore(logicalDevice, imageSemaphore, nullptr);
 	}

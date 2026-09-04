@@ -11,13 +11,13 @@ find_package(Vulkan REQUIRED)
 find_package(glm REQUIRED)
 
 add_executable(Flux
+    src/voxel.cpp
     src/world.cpp
     src/chunk.cpp
     src/frustum.cpp
     src/descriptor_set.cpp
     src/uniform_buffer.cpp
     src/depth_buffer.cpp
-    src/vertex_buffer.cpp
     src/vertex.cpp
     src/sync_objects.cpp
     src/pipeline.cpp

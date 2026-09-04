@@ -12,7 +12,7 @@ void generateWorld(){
                 Chunk chunk;
                 chunk.size = 10.0f;
                 chunk.position = glm::vec3(i, j, k) * chunk.size;
-                chunk.voxelCount = voxelsPerChunk;
+                chunk.voxelsPerEdge = voxelsPerChunk;
                 initializeChunk(chunk);
                 chunks.push_back(chunk);
             }

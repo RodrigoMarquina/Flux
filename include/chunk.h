@@ -1,19 +1,23 @@
 #pragma once
 
 #include "vertex.h"
+#include "voxel.h"
 #include <glm/glm.hpp>
 #include <vulkan/vulkan.h>
 #include <vector>
 
 struct Chunk {
     glm::vec3 position;
-    int voxelCount;
+    int voxelsPerEdge;
     float size;
     VkBuffer chunkBuffer;
     VkDeviceMemory chunkMemory;
-    std::vector<Voxel> voxels;
+    std::vector<StorageVoxel> voxelDataList;
+    std::vector<FaceInstance> faceRenderList;
     void* memoryMap;
 };
+
+void fillFaceRenderList(Chunk& chunk);
 
 void initializeChunk(Chunk& chunk);
 

@@ -3,6 +3,8 @@
 #include <vulkan/vulkan.h>
 #include <array>
 
+//location 0 = origin (vec3, binding 1), location 1 = faceDirectionIndex (uint8, binding 1)
+
 VkResult createPipeline(VkPipeline* pipeline, VkRenderPass* renderPass, VkDevice* logicalDevice, VkPipelineLayout* pipelineLayout, VkShaderModule* shaderModuleVert, VkShaderModule* shaderModuleFrag, VkViewport* viewport, VkRect2D* scissors, VkDescriptorSetLayout* descriptorSetLayout){
     VkPipelineShaderStageCreateInfo pipelineShaderStageCreateInfoVert {};
     pipelineShaderStageCreateInfoVert.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -18,42 +20,31 @@ VkResult createPipeline(VkPipeline* pipeline, VkRenderPass* renderPass, VkDevice
     pipelineShaderStageCreateInfoFrag.pName = "main";
     pipelineShaderStageCreateInfoFrag.pSpecializationInfo = nullptr;
 
-    VkVertexInputBindingDescription vertexInputBindingDescription {};
-    vertexInputBindingDescription.binding = 0;
-    vertexInputBindingDescription.stride = sizeof(Vertex);
-    vertexInputBindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
     VkVertexInputBindingDescription instanceInputBindingDescription {};
     instanceInputBindingDescription.binding = 1;
-    instanceInputBindingDescription.stride = sizeof(Voxel);
+    instanceInputBindingDescription.stride = sizeof(FaceInstance);
     instanceInputBindingDescription.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
 
-    VkVertexInputAttributeDescription vertexInputAttributeDescription1 {};
-    vertexInputAttributeDescription1.binding = 0;
-    vertexInputAttributeDescription1.location = 1;
-    vertexInputAttributeDescription1.format = VK_FORMAT_R32G32B32_SFLOAT;
-    vertexInputAttributeDescription1.offset = 12;
-
-    VkVertexInputAttributeDescription vertexInputAttributeDescription2 {};
-    vertexInputAttributeDescription2.binding = 0;
-    vertexInputAttributeDescription2.location = 0;
-    vertexInputAttributeDescription2.format = VK_FORMAT_R32G32B32_SFLOAT;
-    vertexInputAttributeDescription2.offset = 0;
+    VkVertexInputAttributeDescription vertexInputAttributeDescription {};
+    vertexInputAttributeDescription.binding = 1;
+    vertexInputAttributeDescription.location = 1;
+    vertexInputAttributeDescription.format = VK_FORMAT_R8_UINT;
+    vertexInputAttributeDescription.offset = offsetof(FaceInstance, faceDirectionIndex);
 
     VkVertexInputAttributeDescription instanceInputAttributeDescription {};
     instanceInputAttributeDescription.binding = 1;
-    instanceInputAttributeDescription.location = 2;
+    instanceInputAttributeDescription.location = 0;
     instanceInputAttributeDescription.format = VK_FORMAT_R32G32B32_SFLOAT;
-    instanceInputAttributeDescription.offset = 0;
+    instanceInputAttributeDescription.offset = offsetof(FaceInstance, origin);
 
     std::array<VkPipelineShaderStageCreateInfo, 2> shaderStage = {pipelineShaderStageCreateInfoVert, pipelineShaderStageCreateInfoFrag};
-    std::array<VkVertexInputAttributeDescription, 3> vertexDescription = {vertexInputAttributeDescription1, vertexInputAttributeDescription2, instanceInputAttributeDescription};
-    std::array<VkVertexInputBindingDescription, 2> vertexBindingDeescriptions = {vertexInputBindingDescription, instanceInputBindingDescription};
+    std::array<VkVertexInputAttributeDescription, 2> vertexDescription = {vertexInputAttributeDescription, instanceInputAttributeDescription};
+    std::array<VkVertexInputBindingDescription, 1> vertexBindingDeescriptions = {instanceInputBindingDescription};
 
     VkPipelineVertexInputStateCreateInfo pipelineVertexInputStateCreateInfo {};
     pipelineVertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    pipelineVertexInputStateCreateInfo.vertexBindingDescriptionCount = 2;
-    pipelineVertexInputStateCreateInfo.vertexAttributeDescriptionCount = 3;
+    pipelineVertexInputStateCreateInfo.vertexBindingDescriptionCount = vertexBindingDeescriptions.size();
+    pipelineVertexInputStateCreateInfo.vertexAttributeDescriptionCount = vertexDescription.size();
     pipelineVertexInputStateCreateInfo.pVertexBindingDescriptions = vertexBindingDeescriptions.data();
     pipelineVertexInputStateCreateInfo.pVertexAttributeDescriptions = vertexDescription.data();
 
