@@ -2,16 +2,25 @@
 #include "voxel.h"
 
 void initializeChunk(Chunk& chunk){
-    chunk.voxelDataList.reserve(chunk.voxelsPerEdge * chunk.voxelsPerEdge * chunk.voxelsPerEdge);
+    chunk.materials.reserve(chunk.voxelsPerEdge * chunk.voxelsPerEdge * chunk.voxelsPerEdge);
+    chunk.energies.reserve(chunk.voxelsPerEdge * chunk.voxelsPerEdge * chunk.voxelsPerEdge);
     for(int i = 0; i < chunk.voxelsPerEdge; i++){
         for(int j = 0; j < chunk.voxelsPerEdge; j++){
             for(int k = 0; k < chunk.voxelsPerEdge; k++){
-                StorageVoxel dataVoxel;
-                dataVoxel.material = MaterialType::STONE;
-                chunk.voxelDataList.push_back(dataVoxel);
+                chunk.materials.push_back(MaterialType::STONE);
+                chunk.energies.push_back(65000000);
             }
         }
     }
+}
+
+uint64_t getChunkEnergy(const Chunk& chunk){
+    uint64_t totalEnergy = 0;
+    for(uint64_t energy : chunk.energies){
+        totalEnergy += energy;
+    }
+
+    return totalEnergy;
 }
 
 struct Direction {
@@ -27,14 +36,14 @@ void fillFaceRenderList(Chunk& chunk){
     for(int i = 0; i < chunk.voxelsPerEdge; i++){
         for(int j = 0; j < chunk.voxelsPerEdge; j++){
             for(int k = 0; k < chunk.voxelsPerEdge; k++){
-                int index = i * chunk.voxelsPerEdge * chunk.voxelsPerEdge + j * chunk.voxelsPerEdge + k;
-                if(chunk.voxelDataList[index].material != MaterialType::AIR){
+                size_t index = i * chunk.voxelsPerEdge * chunk.voxelsPerEdge + j * chunk.voxelsPerEdge + k;
+                if(chunk.materials[index] != MaterialType::AIR){
                     for(uint8_t d = 0; d < 6; d++){
                         int ni = i + directions[d].di;
                         int nj = j + directions[d].dj;
                         int nk = k + directions[d].dk;
                         if(ni < 0 || ni >= chunk.voxelsPerEdge || nj < 0 || nj >= chunk.voxelsPerEdge || nk < 0 || nk >= chunk.voxelsPerEdge || 
-                            chunk.voxelDataList[ni * (chunk.voxelsPerEdge * chunk.voxelsPerEdge) + nj * chunk.voxelsPerEdge + nk].material == MaterialType::AIR){
+                            chunk.materials[ni * (chunk.voxelsPerEdge * chunk.voxelsPerEdge) + nj * chunk.voxelsPerEdge + nk] == MaterialType::AIR){
                             FaceInstance faceInstance;
                             faceInstance.origin = chunk.position + glm::vec3(i, j, k) * (chunk.size / chunk.voxelsPerEdge);
                             faceInstance.faceDirectionIndex = d;
