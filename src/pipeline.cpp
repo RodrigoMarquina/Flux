@@ -3,7 +3,7 @@
 #include <vulkan/vulkan.h>
 #include <array>
 
-//location 0 = origin (vec3, binding 1), location 1 = faceDirectionIndex (uint8, binding 1)
+//location 0 = origin (vec3, binding 1), location 1 = faceDirectionIndex (uint8, binding 1), location 2 = temperature (float32, binding 1)
 
 VkResult createPipeline(VkPipeline* pipeline, VkRenderPass* renderPass, VkDevice* logicalDevice, VkPipelineLayout* pipelineLayout, VkShaderModule* shaderModuleVert, VkShaderModule* shaderModuleFrag, VkViewport* viewport, VkRect2D* scissors, VkDescriptorSetLayout* descriptorSetLayout){
     VkPipelineShaderStageCreateInfo pipelineShaderStageCreateInfoVert {};
@@ -25,20 +25,26 @@ VkResult createPipeline(VkPipeline* pipeline, VkRenderPass* renderPass, VkDevice
     instanceInputBindingDescription.stride = sizeof(FaceInstance);
     instanceInputBindingDescription.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
 
-    VkVertexInputAttributeDescription vertexInputAttributeDescription {};
-    vertexInputAttributeDescription.binding = 1;
-    vertexInputAttributeDescription.location = 1;
-    vertexInputAttributeDescription.format = VK_FORMAT_R8_UINT;
-    vertexInputAttributeDescription.offset = offsetof(FaceInstance, faceDirectionIndex);
+    VkVertexInputAttributeDescription originAttributeDescription {};
+    originAttributeDescription.binding = 1;
+    originAttributeDescription.location = 0;
+    originAttributeDescription.format = VK_FORMAT_R32G32B32_SFLOAT;
+    originAttributeDescription.offset = offsetof(FaceInstance, origin);
+    
+    VkVertexInputAttributeDescription faceDirectionAttributeDescription {};
+    faceDirectionAttributeDescription.binding = 1;
+    faceDirectionAttributeDescription.location = 1;
+    faceDirectionAttributeDescription.format = VK_FORMAT_R8_UINT;
+    faceDirectionAttributeDescription.offset = offsetof(FaceInstance, faceDirectionIndex);
 
-    VkVertexInputAttributeDescription instanceInputAttributeDescription {};
-    instanceInputAttributeDescription.binding = 1;
-    instanceInputAttributeDescription.location = 0;
-    instanceInputAttributeDescription.format = VK_FORMAT_R32G32B32_SFLOAT;
-    instanceInputAttributeDescription.offset = offsetof(FaceInstance, origin);
+    VkVertexInputAttributeDescription temperatureAttributeDescription {};
+    temperatureAttributeDescription.binding = 1;
+    temperatureAttributeDescription.location = 2;
+    temperatureAttributeDescription.format = VK_FORMAT_R32_SFLOAT;
+    temperatureAttributeDescription.offset = offsetof(FaceInstance, temperature);
 
     std::array<VkPipelineShaderStageCreateInfo, 2> shaderStage = {pipelineShaderStageCreateInfoVert, pipelineShaderStageCreateInfoFrag};
-    std::array<VkVertexInputAttributeDescription, 2> vertexDescription = {vertexInputAttributeDescription, instanceInputAttributeDescription};
+    std::array<VkVertexInputAttributeDescription, 3> vertexDescription = {originAttributeDescription, faceDirectionAttributeDescription, temperatureAttributeDescription};
     std::array<VkVertexInputBindingDescription, 1> vertexBindingDeescriptions = {instanceInputBindingDescription};
 
     VkPipelineVertexInputStateCreateInfo pipelineVertexInputStateCreateInfo {};

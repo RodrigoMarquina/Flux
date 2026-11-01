@@ -176,6 +176,28 @@ core. Sums of energy across a chunk or the world are always `uint64_t`.
 
 ---
 
+## D9 — CPU derives temperature, GPU derives colour
+
+*2026-11-01 · Phase 3*
+
+Each face instance carries the voxel's temperature as a `float`. The CPU converts energy to
+temperature; the shader converts temperature to a glow colour.
+
+**Why.** Glow depends on temperature, not energy — the same energy is a very different temperature
+in stone than in air, because the conversion depends on the material. Converting energy in the
+shader would mean a second copy of the energy → temperature rule, which would eventually disagree
+with the simulation's (D5). Physics stays in one place, on the CPU. Appearance — temperature to
+colour — is the same for every material (no glow below ~800 K, then dark red → orange → yellow →
+white), so it belongs in the shader, and can change without touching simulation code.
+
+`float` rather than an integer because integer values passed from the vertex to the fragment
+shader must be `flat` in GLSL; a float interpolates normally.
+
+**Rejected.** Raw energy to the GPU (duplicates the physics). Colour computed on the CPU (appearance
+mixed into simulation code; any visual change means CPU changes).
+
+---
+
 ## Current voxel layout
 
 | Field | Type | Bytes |

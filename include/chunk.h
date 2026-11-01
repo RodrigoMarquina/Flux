@@ -5,6 +5,7 @@
 #include <glm/glm.hpp>
 #include <vulkan/vulkan.h>
 #include <vector>
+#include <cassert>
 
 struct Chunk {
     std::vector<MaterialType> materials;
@@ -17,6 +18,13 @@ struct Chunk {
     std::vector<FaceInstance> faceRenderList;
     void* memoryMap;
 };
+
+inline size_t getIndex(const Chunk& chunk, int i, int j, int k){
+    assert(i >= 0 && i < chunk.voxelsPerEdge && "i is out of range.");
+    assert(j >= 0 && j < chunk.voxelsPerEdge && "j is out of range.");
+    assert(k >= 0 && k < chunk.voxelsPerEdge && "k is out of range.");
+    return static_cast<size_t>(i) * chunk.voxelsPerEdge * chunk.voxelsPerEdge + static_cast<size_t>(j) * chunk.voxelsPerEdge + static_cast<size_t>(k);
+}
 
 uint64_t getChunkEnergy(const Chunk& chunk);
 

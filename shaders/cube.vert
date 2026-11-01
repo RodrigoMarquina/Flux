@@ -2,7 +2,10 @@
 
 layout(location = 0) in vec3 inOrigin;
 layout(location = 1) in uint inFaceDirectionIndex;
+layout(location = 2) in float inTemperature;
 layout(location = 0) out vec3 outColor;
+const float minTemp = 800.0;
+const float maxTemp = 1200.0;
 
 const vec3 faceColors[6] = vec3[](
     vec3(1.0, 1.0, 1.0),
@@ -60,5 +63,5 @@ layout(binding = 0) uniform UniformBuffer {
 
 void main(){
     gl_Position = ubo.projection * ubo.view * ubo.model * vec4(positions[inFaceDirectionIndex * 6 + gl_VertexIndex] + inOrigin, 1.0);
-    outColor = faceColors[inFaceDirectionIndex];
+    outColor = mix(faceColors[inFaceDirectionIndex], vec3(1, 0, 0), clamp((inTemperature - minTemp) / (maxTemp - minTemp), 0.0, 1.0));
 }

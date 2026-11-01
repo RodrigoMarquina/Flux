@@ -36,17 +36,18 @@ void fillFaceRenderList(Chunk& chunk){
     for(int i = 0; i < chunk.voxelsPerEdge; i++){
         for(int j = 0; j < chunk.voxelsPerEdge; j++){
             for(int k = 0; k < chunk.voxelsPerEdge; k++){
-                size_t index = i * chunk.voxelsPerEdge * chunk.voxelsPerEdge + j * chunk.voxelsPerEdge + k;
+                size_t index = getIndex(chunk, i, j, k);
                 if(chunk.materials[index] != MaterialType::AIR){
                     for(uint8_t d = 0; d < 6; d++){
                         int ni = i + directions[d].di;
                         int nj = j + directions[d].dj;
                         int nk = k + directions[d].dk;
                         if(ni < 0 || ni >= chunk.voxelsPerEdge || nj < 0 || nj >= chunk.voxelsPerEdge || nk < 0 || nk >= chunk.voxelsPerEdge || 
-                            chunk.materials[ni * (chunk.voxelsPerEdge * chunk.voxelsPerEdge) + nj * chunk.voxelsPerEdge + nk] == MaterialType::AIR){
+                            chunk.materials[getIndex(chunk, ni, nj, nk)] == MaterialType::AIR){
                             FaceInstance faceInstance;
                             faceInstance.origin = chunk.position + glm::vec3(i, j, k) * (chunk.size / chunk.voxelsPerEdge);
                             faceInstance.faceDirectionIndex = d;
+                            faceInstance.temperature = static_cast<float>(energyToTemperature(chunk.energies[index], chunk.materials[index]));
                             chunk.faceRenderList.push_back(faceInstance);
                         }
                     }   

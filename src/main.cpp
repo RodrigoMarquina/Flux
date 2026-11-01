@@ -162,7 +162,7 @@ int main(){
 	}
 
 	generateWorld();
-	chunks[13].energies[555] = 216000000;
+	chunks[0].energies[550] = 216000000; //13 - 555 middle voxel
 	VkResult createChunkBufferResult;
 	for(Chunk& chunk : chunks){
 		fillFaceRenderList(chunk);
@@ -318,7 +318,6 @@ int main(){
 		frustum = getFrustum(VP);
 		visibleChunks = 0;
 		totalVoxels = 0;
-		
 		for(Chunk& chunk : chunks){ //Draw Loop
 			if(isChunkVisible(frustum, chunk.position, chunk.size)){
 				vkCmdBindVertexBuffers(commandBuffers[imageIndex], 1, 1, &chunk.chunkBuffer, &deviceSize);
@@ -355,6 +354,8 @@ int main(){
 		std::cout << "Total Chunks: " << chunks.size() << " / Visible Chunks: " << visibleChunks << "\n";
 		std::cout << "Total Voxels: " << totalVoxels << "\n";
 		std::cout << "Total Energy: " << totalEnergy << "\n";
+		std::cout << "Hot voxel: " << energyToTemperature(chunks[13].energies[555], chunks[13].materials[555]) << "\n"; 
+		std::cout << "Normal voxel: " << energyToTemperature(chunks[0].energies[0], chunks[0].materials[0]) << "\n"; 
 	}
 
 	vkDeviceWaitIdle(logicalDevice); //Waits for GPU work to finish before destroying anything

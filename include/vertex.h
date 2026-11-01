@@ -12,6 +12,7 @@ struct Vertex { //The stride would be 24 bytes per vertex. 3 for each float
 struct FaceInstance {
     glm::vec3 origin;
     uint8_t faceDirectionIndex;
+    float temperature;
 };
 
 constexpr int verticesPerFace = 6;
