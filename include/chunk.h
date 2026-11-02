@@ -26,6 +26,8 @@ inline size_t getIndex(const Chunk& chunk, int i, int j, int k){
     return static_cast<size_t>(i) * chunk.voxelsPerEdge * chunk.voxelsPerEdge + static_cast<size_t>(j) * chunk.voxelsPerEdge + static_cast<size_t>(k);
 }
 
+void conductHeat(Chunk& chunk, double dt);
+
 uint64_t getChunkEnergy(const Chunk& chunk);
 
 void fillFaceRenderList(Chunk& chunk);

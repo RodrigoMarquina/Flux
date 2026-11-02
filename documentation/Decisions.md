@@ -198,6 +198,32 @@ mixed into simulation code; any visual change means CPU changes).
 
 ---
 
+## D10 — Fixed simulation timestep, decoupled from frame rate
+
+*2026-11-02 · Phase 3*
+
+The simulation advances in fixed ticks of constant `dt`. Each frame measures the real time that
+passed since the previous frame, adds it to an accumulator, and runs as many ticks as that time
+covers — zero, one, or several — then draws once.
+
+**Why.** The tick, not the frame, is the simulation's unit of time. With a variable `dt` the physics
+depends on frame rate: results differ between machines and runs, and one slow frame produces one
+huge, possibly unstable step. With a fixed `dt` the physics is identical everywhere and its
+stability (D3: explicit diffusion) is known in advance.
+
+**Overload.** If ticks take longer to compute than the time they represent, the accumulator would
+grow forever and each frame would run more ticks than the last (the "spiral of death"). Ticks per
+frame are capped; time beyond the cap is dropped. The world then runs slower than real time.
+That is deliberate — it is *computation is the boundary of reality* (EnergyEconomy §10) made
+literal: when the world costs more than the machine can pay, time itself slows.
+
+**Energy check** runs after every tick, not every frame, so a conservation failure names the tick
+that caused it.
+
+**Rejected.** Variable `dt` from frame time. One tick per frame (ties simulation speed to FPS).
+
+---
+
 ## Current voxel layout
 
 | Field | Type | Bytes |

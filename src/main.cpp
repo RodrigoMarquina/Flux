@@ -243,20 +243,40 @@ int main(){
 	glm::mat4 view;
 	float yaw = 0, pitch = 0;
 	double lastX = 0, lastY = 0, currentX = 0, currentY = 0;
-	std::chrono::high_resolution_clock::time_point lastTime, currentTime;
 	int visibleChunks = 0;
 	int totalVoxels = 0;
 	uint64_t totalEnergy = 0;
 	float sensitivity = 0.001f;
+	const double dt = 1.0 / 60.0;
 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+	std::chrono::steady_clock::time_point previousFrameStart = std::chrono::steady_clock::now();
+	double elapsedTime = 0;
+	double accumulator = 0;
+	const int maxTicksPerFrame = 5; 
 	while(!glfwWindowShouldClose(window)){
-		lastTime = std::chrono::high_resolution_clock::now();
+		std::chrono::steady_clock::time_point frameStart = std::chrono::steady_clock::now();
+		elapsedTime = std::chrono::duration<double>(frameStart - previousFrameStart).count();
+		previousFrameStart = frameStart;
 		glfwPollEvents();
-		totalEnergy = 0;
-		for(Chunk& chunk : chunks){ //Simulate loop
-			totalEnergy += getChunkEnergy(chunk);
+		accumulator += elapsedTime;
+		int ticks = 0;
+		while(accumulator >= dt && ticks < maxTicksPerFrame){
+			totalEnergy = 0;
+			for(Chunk& chunk : chunks){ //Simulate loop
+				conductHeat(chunk, dt);
+				totalEnergy += getChunkEnergy(chunk);
+			}
+			accumulator -= dt;
+			ticks += 1;
+		}
+		if(ticks == maxTicksPerFrame){
+			accumulator = 0;
 		}
 		vkWaitForFences(logicalDevice, 1, &frameFence, VK_TRUE, UINT64_MAX); //Infinite wait
+		for(Chunk& chunk : chunks){
+			fillFaceRenderList(chunk);
+			memcpy(chunk.memoryMap, chunk.faceRenderList.data(), sizeof(FaceInstance) * chunk.faceRenderList.size());
+		}
 		vkResetFences(logicalDevice, 1, &frameFence);
 		vkAcquireNextImageKHR(logicalDevice, swapchain, UINT64_MAX, imageSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex); //Takes either a semaphore OR a fence to signal
 		vkResetCommandBuffer(commandBuffers[imageIndex], 0);
@@ -349,13 +369,12 @@ int main(){
 		presentInfoKHR.pImageIndices = &imageIndex;
 		vkQueuePresentKHR(queueHandle, &presentInfoKHR);
 		currentFrame = (currentFrame + 1) % imageSemaphores.size();
-		currentTime = std::chrono::high_resolution_clock::now();
-		std::cout << "FPS: " << 1 / std::chrono::duration<float>(currentTime - lastTime).count() << "\n";
+		std::cout << "FPS: " << 1 / std::chrono::duration<double>(elapsedTime).count() << "\n";
 		std::cout << "Total Chunks: " << chunks.size() << " / Visible Chunks: " << visibleChunks << "\n";
 		std::cout << "Total Voxels: " << totalVoxels << "\n";
 		std::cout << "Total Energy: " << totalEnergy << "\n";
-		std::cout << "Hot voxel: " << energyToTemperature(chunks[13].energies[555], chunks[13].materials[555]) << "\n"; 
-		std::cout << "Normal voxel: " << energyToTemperature(chunks[0].energies[0], chunks[0].materials[0]) << "\n"; 
+		std::cout << "Hot voxel: " << energyToTemperature(chunks[0].energies[550], chunks[0].materials[550]) << "\n"; 
+		std::cout << "Normal voxel: " << energyToTemperature(chunks[0].energies[551], chunks[0].materials[551]) << "\n"; 
 	}
 
 	vkDeviceWaitIdle(logicalDevice); //Waits for GPU work to finish before destroying anything

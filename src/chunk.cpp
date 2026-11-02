@@ -1,5 +1,6 @@
 #include "chunk.h"
 #include "voxel.h"
+#include <limits>
 
 void initializeChunk(Chunk& chunk){
     chunk.materials.reserve(chunk.voxelsPerEdge * chunk.voxelsPerEdge * chunk.voxelsPerEdge);
@@ -54,6 +55,41 @@ void fillFaceRenderList(Chunk& chunk){
                 }
             }
         }
+    }
+}
+
+void conductHeat(Chunk& chunk, double dt){
+    std::vector<int64_t> deltaArray (chunk.energies.size()); 
+    static constexpr std::array<Direction, 3> directions = {{{1, 0, 0}, {0, 1, 0}, {0, 0, 1}}};
+    for(int i = 0; i < chunk.voxelsPerEdge; i++){
+        for(int j = 0; j < chunk.voxelsPerEdge; j++){
+            for(int k = 0; k < chunk.voxelsPerEdge; k++){
+                size_t presentIndex = getIndex(chunk, i, j, k);
+                double presentVoxelTemperature = energyToTemperature(chunk.energies[presentIndex], chunk.materials[presentIndex]);
+                double presentConductivity = materialProperties[static_cast<size_t>(chunk.materials[presentIndex])].conductivity;
+                for(uint8_t d = 0; d < 3; d++){
+                    int ni = i + directions[d].di;
+                    int nj = j + directions[d].dj;
+                    int nk = k + directions[d].dk;
+                    if(ni < chunk.voxelsPerEdge && nj < chunk.voxelsPerEdge && nk < chunk.voxelsPerEdge){
+                        size_t neighbourIndex = getIndex(chunk, ni, nj, nk);
+                        double neighbourVoxelTemperature = energyToTemperature(chunk.energies[neighbourIndex], chunk.materials[neighbourIndex]);
+                        double neighbourConductivity = materialProperties[static_cast<size_t>(chunk.materials[neighbourIndex])].conductivity;
+                        double conductivity = 2 * (presentConductivity * neighbourConductivity) / (presentConductivity + neighbourConductivity);
+                        double flowInWatts = conductivity * voxelEdgeLength * (presentVoxelTemperature - neighbourVoxelTemperature);
+                        int64_t flowInUnits = static_cast<int64_t>(flowInWatts * dt / joulesPerEnergyUnit);
+                        deltaArray[presentIndex] -= flowInUnits;
+                        deltaArray[neighbourIndex] += flowInUnits;
+                    }
+                }
+            }
+        } 
+    }          
+    for(size_t i = 0; i < chunk.energies.size(); i++){
+        int64_t newEnergy = chunk.energies[i] + deltaArray[i];
+        assert(newEnergy >= 0 && "energy went negative, a flow took more than the voxel had.");
+        assert(newEnergy <= std::numeric_limits<uint32_t>::max() && "energy overflowed, energy overflowed uint32, a voxel received more than it can hold.");
+        chunk.energies[i] = static_cast<uint32_t>(newEnergy);
     }
 }
 
