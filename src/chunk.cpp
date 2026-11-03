@@ -1,10 +1,13 @@
 #include "chunk.h"
 #include "voxel.h"
+#include "world.h"
 #include <limits>
+#include <algorithm>
 
 void initializeChunk(Chunk& chunk){
     chunk.materials.reserve(chunk.voxelsPerEdge * chunk.voxelsPerEdge * chunk.voxelsPerEdge);
     chunk.energies.reserve(chunk.voxelsPerEdge * chunk.voxelsPerEdge * chunk.voxelsPerEdge);
+    chunk.deltaArray.resize(chunk.voxelsPerEdge * chunk.voxelsPerEdge * chunk.voxelsPerEdge);
     for(int i = 0; i < chunk.voxelsPerEdge; i++){
         for(int j = 0; j < chunk.voxelsPerEdge; j++){
             for(int k = 0; k < chunk.voxelsPerEdge; k++){
@@ -24,27 +27,21 @@ uint64_t getChunkEnergy(const Chunk& chunk){
     return totalEnergy;
 }
 
-struct Direction {
-    int di;
-    int dj;
-    int dk;
-};
-
 void fillFaceRenderList(Chunk& chunk){
     chunk.faceRenderList.clear();
     chunk.faceRenderList.reserve(6 * (chunk.voxelsPerEdge * chunk.voxelsPerEdge));
-    static constexpr std::array<Direction, 6> directions = {{{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}}};
+    static constexpr std::array<GridCoordinate, 6> directions = {{{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}}};
     for(int i = 0; i < chunk.voxelsPerEdge; i++){
         for(int j = 0; j < chunk.voxelsPerEdge; j++){
             for(int k = 0; k < chunk.voxelsPerEdge; k++){
-                size_t index = getIndex(chunk, i, j, k);
+                size_t index = getVoxelIndex(chunk, i, j, k);
                 if(chunk.materials[index] != MaterialType::AIR){
                     for(uint8_t d = 0; d < 6; d++){
-                        int ni = i + directions[d].di;
-                        int nj = j + directions[d].dj;
-                        int nk = k + directions[d].dk;
+                        int ni = i + directions[d].i;
+                        int nj = j + directions[d].j;
+                        int nk = k + directions[d].k;
                         if(ni < 0 || ni >= chunk.voxelsPerEdge || nj < 0 || nj >= chunk.voxelsPerEdge || nk < 0 || nk >= chunk.voxelsPerEdge || 
-                            chunk.materials[getIndex(chunk, ni, nj, nk)] == MaterialType::AIR){
+                            chunk.materials[getVoxelIndex(chunk, ni, nj, nk)] == MaterialType::AIR){
                             FaceInstance faceInstance;
                             faceInstance.origin = chunk.position + glm::vec3(i, j, k) * (chunk.size / chunk.voxelsPerEdge);
                             faceInstance.faceDirectionIndex = d;
@@ -58,39 +55,66 @@ void fillFaceRenderList(Chunk& chunk){
     }
 }
 
-void conductHeat(Chunk& chunk, double dt){
-    std::vector<int64_t> deltaArray (chunk.energies.size()); 
-    static constexpr std::array<Direction, 3> directions = {{{1, 0, 0}, {0, 1, 0}, {0, 0, 1}}};
+void computeHeatFlow(std::vector<Chunk>& chunks, size_t chunkIndex, double dt){
+    static constexpr std::array<GridCoordinate, 3> directions = {{{1, 0, 0}, {0, 1, 0}, {0, 0, 1}}};
+    Chunk& chunk = chunks[chunkIndex];
     for(int i = 0; i < chunk.voxelsPerEdge; i++){
         for(int j = 0; j < chunk.voxelsPerEdge; j++){
             for(int k = 0; k < chunk.voxelsPerEdge; k++){
-                size_t presentIndex = getIndex(chunk, i, j, k);
+                size_t presentIndex = getVoxelIndex(chunk, i, j, k);
                 double presentVoxelTemperature = energyToTemperature(chunk.energies[presentIndex], chunk.materials[presentIndex]);
                 double presentConductivity = materialProperties[static_cast<size_t>(chunk.materials[presentIndex])].conductivity;
                 for(uint8_t d = 0; d < 3; d++){
-                    int ni = i + directions[d].di;
-                    int nj = j + directions[d].dj;
-                    int nk = k + directions[d].dk;
+                    int ni = i + directions[d].i;
+                    int nj = j + directions[d].j;
+                    int nk = k + directions[d].k;
+                    size_t targetChunkIndex = 0;
+                    size_t targetVoxelIndex = 0;
                     if(ni < chunk.voxelsPerEdge && nj < chunk.voxelsPerEdge && nk < chunk.voxelsPerEdge){
-                        size_t neighbourIndex = getIndex(chunk, ni, nj, nk);
-                        double neighbourVoxelTemperature = energyToTemperature(chunk.energies[neighbourIndex], chunk.materials[neighbourIndex]);
-                        double neighbourConductivity = materialProperties[static_cast<size_t>(chunk.materials[neighbourIndex])].conductivity;
-                        double conductivity = 2 * (presentConductivity * neighbourConductivity) / (presentConductivity + neighbourConductivity);
-                        double flowInWatts = conductivity * voxelEdgeLength * (presentVoxelTemperature - neighbourVoxelTemperature);
-                        int64_t flowInUnits = static_cast<int64_t>(flowInWatts * dt / joulesPerEnergyUnit);
-                        deltaArray[presentIndex] -= flowInUnits;
-                        deltaArray[neighbourIndex] += flowInUnits;
+                        targetChunkIndex = chunkIndex;
+                        targetVoxelIndex = getVoxelIndex(chunk, ni, nj, nk);
+                    } else{
+                        GridCoordinate neighbourChunkCoordinate;
+                        neighbourChunkCoordinate.i = chunk.chunkPosition.i + directions[d].i;
+                        neighbourChunkCoordinate.j = chunk.chunkPosition.j + directions[d].j;
+                        neighbourChunkCoordinate.k = chunk.chunkPosition.k + directions[d].k;
+                        if(neighbourChunkCoordinate.i >= worldSize || neighbourChunkCoordinate.j >= worldSize || neighbourChunkCoordinate.k >= worldSize){
+                            continue;
+                        }
+                        targetChunkIndex = getChunkIndex(neighbourChunkCoordinate.i, neighbourChunkCoordinate.j, neighbourChunkCoordinate.k);
+                        if(ni == chunk.voxelsPerEdge){
+                            ni = 0;
+                        }
+                        if(nj == chunk.voxelsPerEdge){
+                            nj = 0;
+                        }
+                        if(nk == chunk.voxelsPerEdge){
+                            nk = 0;
+                        }
+                        targetVoxelIndex = getVoxelIndex(chunks[targetChunkIndex], ni, nj, nk);
                     }
+                    Chunk& neighbourChunk = chunks[targetChunkIndex];
+                    double neighbourVoxelTemperature = energyToTemperature(neighbourChunk.energies[targetVoxelIndex], neighbourChunk.materials[targetVoxelIndex]);
+                    double neighbourConductivity = materialProperties[static_cast<size_t>(neighbourChunk.materials[targetVoxelIndex])].conductivity;
+                    double conductivity = 2.0 * (presentConductivity * neighbourConductivity) / (presentConductivity + neighbourConductivity);
+                    double flowInWatts = conductivity * voxelEdgeLength * (presentVoxelTemperature - neighbourVoxelTemperature);
+                    int64_t flowInUnits = static_cast<int64_t>(flowInWatts * dt / joulesPerEnergyUnit);
+                    chunk.deltaArray[presentIndex] -= flowInUnits;
+                    neighbourChunk.deltaArray[targetVoxelIndex] += flowInUnits;
                 }
             }
         } 
     }          
+}
+
+void applyHeatFlow(Chunk& chunk){
     for(size_t i = 0; i < chunk.energies.size(); i++){
-        int64_t newEnergy = chunk.energies[i] + deltaArray[i];
+        int64_t newEnergy = chunk.energies[i] + chunk.deltaArray[i];
         assert(newEnergy >= 0 && "energy went negative, a flow took more than the voxel had.");
         assert(newEnergy <= std::numeric_limits<uint32_t>::max() && "energy overflowed, energy overflowed uint32, a voxel received more than it can hold.");
         chunk.energies[i] = static_cast<uint32_t>(newEnergy);
     }
+    std::fill(chunk.deltaArray.begin(), chunk.deltaArray.end(), 0);
 }
 
 VkResult createChunkBuffer(VkDevice* logicalDevice, VkPhysicalDevice* physicalDevice, Chunk& chunk){

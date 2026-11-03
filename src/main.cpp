@@ -162,7 +162,7 @@ int main(){
 	}
 
 	generateWorld();
-	chunks[0].energies[550] = 216000000; //13 - 555 middle voxel
+	chunks[0].energies[950] = 216000000;
 	VkResult createChunkBufferResult;
 	for(Chunk& chunk : chunks){
 		fillFaceRenderList(chunk);
@@ -244,7 +244,7 @@ int main(){
 	float yaw = 0, pitch = 0;
 	double lastX = 0, lastY = 0, currentX = 0, currentY = 0;
 	int visibleChunks = 0;
-	int totalVoxels = 0;
+	int totalFaces = 0;
 	uint64_t totalEnergy = 0;
 	float sensitivity = 0.001f;
 	const double dt = 1.0 / 60.0;
@@ -252,6 +252,10 @@ int main(){
 	std::chrono::steady_clock::time_point previousFrameStart = std::chrono::steady_clock::now();
 	double elapsedTime = 0;
 	double accumulator = 0;
+	double printTimer = 0;
+	int frameCount = 0;
+	int tickCounts = 0;
+	double totalSimulatedTime = 0;
 	const int maxTicksPerFrame = 5; 
 	while(!glfwWindowShouldClose(window)){
 		std::chrono::steady_clock::time_point frameStart = std::chrono::steady_clock::now();
@@ -260,10 +264,19 @@ int main(){
 		glfwPollEvents();
 		accumulator += elapsedTime;
 		int ticks = 0;
-		while(accumulator >= dt && ticks < maxTicksPerFrame){
+		while(accumulator >= dt && ticks < maxTicksPerFrame){ //Simulate loop
 			totalEnergy = 0;
-			for(Chunk& chunk : chunks){ //Simulate loop
-				conductHeat(chunk, dt);
+			std::chrono::steady_clock::time_point simulateTimePrev = std::chrono::steady_clock::now();
+			for(size_t i = 0; i < chunks.size(); i++){
+				computeHeatFlow(chunks, i, dt);
+			}
+			std::chrono::steady_clock::time_point simulateTimePost = std::chrono::steady_clock::now();
+			tickCounts++;
+			totalSimulatedTime += std::chrono::duration<double, std::milli>(simulateTimePost - simulateTimePrev).count();
+			for(Chunk& chunk : chunks){ 
+				applyHeatFlow(chunk);
+			}
+			for(Chunk& chunk : chunks){ 
 				totalEnergy += getChunkEnergy(chunk);
 			}
 			accumulator -= dt;
@@ -337,14 +350,14 @@ int main(){
 		glm::mat4 VP = projection * view;
 		frustum = getFrustum(VP);
 		visibleChunks = 0;
-		totalVoxels = 0;
+		totalFaces = 0;
 		for(Chunk& chunk : chunks){ //Draw Loop
 			if(isChunkVisible(frustum, chunk.position, chunk.size)){
 				vkCmdBindVertexBuffers(commandBuffers[imageIndex], 1, 1, &chunk.chunkBuffer, &deviceSize);
 				vkCmdDraw(commandBuffers[imageIndex], verticesPerFace, chunk.faceRenderList.size(), 0, 0);
 				visibleChunks++;
 			}
-			totalVoxels += chunk.faceRenderList.size();
+			totalFaces += chunk.faceRenderList.size();
 		}
 		vkCmdEndRenderPass(commandBuffers[imageIndex]);
 		vkEndCommandBuffer(commandBuffers[imageIndex]);
@@ -369,12 +382,23 @@ int main(){
 		presentInfoKHR.pImageIndices = &imageIndex;
 		vkQueuePresentKHR(queueHandle, &presentInfoKHR);
 		currentFrame = (currentFrame + 1) % imageSemaphores.size();
-		std::cout << "FPS: " << 1 / std::chrono::duration<double>(elapsedTime).count() << "\n";
-		std::cout << "Total Chunks: " << chunks.size() << " / Visible Chunks: " << visibleChunks << "\n";
-		std::cout << "Total Voxels: " << totalVoxels << "\n";
-		std::cout << "Total Energy: " << totalEnergy << "\n";
-		std::cout << "Hot voxel: " << energyToTemperature(chunks[0].energies[550], chunks[0].materials[550]) << "\n"; 
-		std::cout << "Normal voxel: " << energyToTemperature(chunks[0].energies[551], chunks[0].materials[551]) << "\n"; 
+		printTimer += elapsedTime;
+		frameCount++;
+		if(printTimer >= 1.0){
+			std::cout << "FPS: " << frameCount / printTimer << "\n";
+			if(tickCounts > 0){
+				std::cout << "Simulate time: " << totalSimulatedTime / tickCounts << "ms" << "\n";
+			}
+			std::cout << "Total Chunks: " << chunks.size() << " / Visible Chunks: " << visibleChunks << "\n";
+			std::cout << "Total Faces: " << totalFaces << "\n";
+			std::cout << "Total Energy: " << totalEnergy << "\n";
+			std::cout << "Hot voxel: " << energyToTemperature(chunks[0].energies[950], chunks[0].materials[950]) << "\n"; 
+			std::cout << "Neighbour (chunk 9): " << energyToTemperature(chunks[9].energies[50], chunks[9].materials[50]) << "\n"; 
+			printTimer -= 1.0;
+			frameCount = 0;
+			tickCounts = 0;
+			totalSimulatedTime = 0;
+		}
 	}
 
 	vkDeviceWaitIdle(logicalDevice); //Waits for GPU work to finish before destroying anything

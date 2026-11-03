@@ -1,10 +1,23 @@
+=== Debug build (everyday development: asserts ON, no optimization, debug symbols) ===
 rm -rf /home/kina/Documents/Flux/build/*
-cmake -S /home/kina/Documents/Flux/ -B /home/kina/Documents/Flux/build
+cmake -S /home/kina/Documents/Flux/ -B /home/kina/Documents/Flux/build -DCMAKE_BUILD_TYPE=Debug
 cmake --build /home/kina/Documents/Flux/build
+Run:  /home/kina/Documents/Flux/build/Flux
+
+=== Release build (performance measurement: -O3, asserts OFF) ===
+rm -rf /home/kina/Documents/Flux/build-release/*
+cmake -S /home/kina/Documents/Flux/ -B /home/kina/Documents/Flux/build-release -DCMAKE_BUILD_TYPE=Release
+cmake --build /home/kina/Documents/Flux/build-release
+Run:  /home/kina/Documents/Flux/build-release/Flux
+
+The rm and first cmake line are only needed once, or after changing CMakeLists.txt.
+After editing .cpp/.h files, just run the "cmake --build" line again.
+Only measure performance with the Release build. Develop with the Debug build.
 
 Add this to your ~/.bashrc:
 export VK_LAYER_PATH=/usr/share/vulkan/explicit_layer.d
 
+=== Shaders (rebuild after editing any .vert/.frag) ===
 glslc cube.vert -o cube.vert.spv
 glslc cube.frag -o cube.frag.spv
 Run from the shaders/ directory.

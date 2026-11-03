@@ -2,9 +2,6 @@
 
 std::vector<Chunk> chunks;
 
-int worldSize = 3;
-int voxelsPerChunk = 10;
-
 void generateWorld(){
     for(int i = 0; i < worldSize; i++){
         for(int j = 0; j < worldSize; j++){
@@ -14,6 +11,9 @@ void generateWorld(){
                 chunk.position = glm::vec3(i, j, k) * chunk.size;
                 chunk.voxelsPerEdge = voxelsPerChunk;
                 initializeChunk(chunk);
+                chunk.chunkPosition.i = i;
+                chunk.chunkPosition.j = j;
+                chunk.chunkPosition.k = k;
                 chunks.push_back(chunk);
             }
         }

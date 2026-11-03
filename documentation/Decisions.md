@@ -224,6 +224,29 @@ that caused it.
 
 ---
 
+## D11 — Heat crosses chunk boundaries; ticks are two-phase at world level
+
+*2026-11-02 · Phase 3*
+
+D4's ownership rule extends across chunks: a voxel on a chunk's positive edge owns the pair with
+the voxel at coordinate 0 of the next chunk in that direction. Each chunk keeps a persistent delta
+array. A tick is: compute pass over **all** chunks, then apply pass over **all** chunks.
+
+**Why.** Chunks are a memory layout, not a physical boundary. Skipping cross-chunk pairs made every
+chunk a perfect insulator. Two phases at world level are required for the same reason as within a
+chunk (D3): if one chunk applied its changes before the next computed, boundary flows would read
+already-updated energies and heat would drift in the order chunks are processed.
+
+Neighbour chunks are found by index, never by pointer — a pointer into a `std::vector` dangles
+when the vector reallocates.
+
+**Accepted cost.** A chunk's compute pass writes into a neighbour's delta array. Safe while
+single-threaded; a data race once chunks run on separate threads.
+
+**Open.** Threading the compute pass (see D4). Halo/ghost layers are the likely answer.
+
+---
+
 ## Current voxel layout
 
 | Field | Type | Bytes |

@@ -7,9 +7,17 @@
 #include <vector>
 #include <cassert>
 
+struct GridCoordinate {
+    int i;
+    int j;
+    int k;
+};
+
 struct Chunk {
     std::vector<MaterialType> materials;
     std::vector<uint32_t> energies;
+    std::vector<int64_t> deltaArray; 
+    GridCoordinate chunkPosition;
     glm::vec3 position;
     int voxelsPerEdge;
     float size;
@@ -19,14 +27,16 @@ struct Chunk {
     void* memoryMap;
 };
 
-inline size_t getIndex(const Chunk& chunk, int i, int j, int k){
+inline size_t getVoxelIndex(const Chunk& chunk, int i, int j, int k){
     assert(i >= 0 && i < chunk.voxelsPerEdge && "i is out of range.");
     assert(j >= 0 && j < chunk.voxelsPerEdge && "j is out of range.");
     assert(k >= 0 && k < chunk.voxelsPerEdge && "k is out of range.");
     return static_cast<size_t>(i) * chunk.voxelsPerEdge * chunk.voxelsPerEdge + static_cast<size_t>(j) * chunk.voxelsPerEdge + static_cast<size_t>(k);
 }
 
-void conductHeat(Chunk& chunk, double dt);
+void computeHeatFlow(std::vector<Chunk>& chunks, size_t chunkIndex, double dt);
+
+void applyHeatFlow(Chunk& chunk);
 
 uint64_t getChunkEnergy(const Chunk& chunk);
 
