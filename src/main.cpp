@@ -267,6 +267,9 @@ int main(){
 		while(accumulator >= dt && ticks < maxTicksPerFrame){ //Simulate loop
 			totalEnergy = 0;
 			std::chrono::steady_clock::time_point simulateTimePrev = std::chrono::steady_clock::now();
+			for(Chunk& chunk : chunks){ 
+				updateTemperatures(chunk);
+			}
 			for(size_t i = 0; i < chunks.size(); i++){
 				computeHeatFlow(chunks, i, dt);
 			}

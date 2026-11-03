@@ -5,17 +5,11 @@
 #include <algorithm>
 
 void initializeChunk(Chunk& chunk){
-    chunk.materials.reserve(chunk.voxelsPerEdge * chunk.voxelsPerEdge * chunk.voxelsPerEdge);
-    chunk.energies.reserve(chunk.voxelsPerEdge * chunk.voxelsPerEdge * chunk.voxelsPerEdge);
-    chunk.deltaArray.resize(chunk.voxelsPerEdge * chunk.voxelsPerEdge * chunk.voxelsPerEdge);
-    for(int i = 0; i < chunk.voxelsPerEdge; i++){
-        for(int j = 0; j < chunk.voxelsPerEdge; j++){
-            for(int k = 0; k < chunk.voxelsPerEdge; k++){
-                chunk.materials.push_back(MaterialType::STONE);
-                chunk.energies.push_back(65000000);
-            }
-        }
-    }
+    const size_t voxelCount = static_cast<size_t>(chunk.voxelsPerEdge) * chunk.voxelsPerEdge * chunk.voxelsPerEdge;
+    chunk.materials.assign(voxelCount, MaterialType::STONE);
+    chunk.energies.assign(voxelCount, stoneAt300k);
+    chunk.deltaArray.resize(voxelCount);
+    chunk.temperatures.resize(voxelCount);
 }
 
 uint64_t getChunkEnergy(const Chunk& chunk){
@@ -62,7 +56,7 @@ void computeHeatFlow(std::vector<Chunk>& chunks, size_t chunkIndex, double dt){
         for(int j = 0; j < chunk.voxelsPerEdge; j++){
             for(int k = 0; k < chunk.voxelsPerEdge; k++){
                 size_t presentIndex = getVoxelIndex(chunk, i, j, k);
-                double presentVoxelTemperature = energyToTemperature(chunk.energies[presentIndex], chunk.materials[presentIndex]);
+                double presentVoxelTemperature = chunk.temperatures[presentIndex];
                 double presentConductivity = materialProperties[static_cast<size_t>(chunk.materials[presentIndex])].conductivity;
                 for(uint8_t d = 0; d < 3; d++){
                     int ni = i + directions[d].i;
@@ -94,7 +88,7 @@ void computeHeatFlow(std::vector<Chunk>& chunks, size_t chunkIndex, double dt){
                         targetVoxelIndex = getVoxelIndex(chunks[targetChunkIndex], ni, nj, nk);
                     }
                     Chunk& neighbourChunk = chunks[targetChunkIndex];
-                    double neighbourVoxelTemperature = energyToTemperature(neighbourChunk.energies[targetVoxelIndex], neighbourChunk.materials[targetVoxelIndex]);
+                    double neighbourVoxelTemperature = neighbourChunk.temperatures[targetVoxelIndex];
                     double neighbourConductivity = materialProperties[static_cast<size_t>(neighbourChunk.materials[targetVoxelIndex])].conductivity;
                     double conductivity = 2.0 * (presentConductivity * neighbourConductivity) / (presentConductivity + neighbourConductivity);
                     double flowInWatts = conductivity * voxelEdgeLength * (presentVoxelTemperature - neighbourVoxelTemperature);
@@ -115,6 +109,12 @@ void applyHeatFlow(Chunk& chunk){
         chunk.energies[i] = static_cast<uint32_t>(newEnergy);
     }
     std::fill(chunk.deltaArray.begin(), chunk.deltaArray.end(), 0);
+}
+
+void updateTemperatures(Chunk& chunk){
+    for(size_t i = 0; i < chunk.temperatures.size(); i++){
+        chunk.temperatures[i] = static_cast<float>(energyToTemperature(chunk.energies[i], chunk.materials[i]));
+    }
 }
 
 VkResult createChunkBuffer(VkDevice* logicalDevice, VkPhysicalDevice* physicalDevice, Chunk& chunk){

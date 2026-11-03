@@ -247,6 +247,41 @@ single-threaded; a data race once chunks run on separate threads.
 
 ---
 
+## D12 — Per-tick temperature cache
+
+*2026-11-03 · Phase 3*
+
+Each chunk keeps a `float temperatures[]` array, filled from energy at the start of every tick. A
+tick is now three phases over all chunks: update temperatures → compute flows → apply flows.
+
+**Why.** Each voxel's temperature was derived up to four times per tick (once as itself, up to three
+times as a neighbour), each a division. Measured in a Release build, 27 000 voxels, averaged over
+~16 s:
+
+| | Temperatures + compute per tick |
+|---|---|
+| Before | ~0.34 ms |
+| After | ~0.27 ms (~20% faster) |
+
+Printed temperatures were identical to the uncached run; energy total unchanged.
+
+**Not a violation of D5.** The cache is scratch data, like the delta array: rebuilt from energy every
+tick and never written back. Energy remains the only source of truth. D5 forbids a *persistent*
+derived copy that can drift.
+
+**`float`, not `double`.** A `double` cache (8 bytes) would be larger than the voxel itself (6 bytes)
+and double the memory the tick reads. Float precision at 300 K is ~0.00003 K — far finer than any
+flow needs — and conservation is unaffected because flows remain integers.
+
+`fillFaceRenderList` still derives temperature directly: it runs after the apply phase, when the
+cache is one tick stale.
+
+**Context.** At 1 cm voxels, 1 m³ is ~10⁶ voxels → ~10 ms per tick at this rate, most of a 16.7 ms
+budget for heat alone. Per-voxel speedups like this are worth tens of percent; the active list is
+worth orders of magnitude.
+
+---
+
 ## Current voxel layout
 
 | Field | Type | Bytes |
