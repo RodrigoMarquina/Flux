@@ -1,4 +1,5 @@
 build/
+build-release/
 *.o
 *.out
 .cache/
