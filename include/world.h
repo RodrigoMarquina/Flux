@@ -3,9 +3,7 @@
 #include "chunk.h"
 #include <vector>
 
-extern std::vector<Chunk> chunks;
-
-void generateWorld();
+std::vector<Chunk> generateWorld();
 
 inline constexpr int worldSize = 3;
 

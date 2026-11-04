@@ -1,8 +1,8 @@
 #include "world.h"
 
-std::vector<Chunk> chunks;
-
-void generateWorld(){
+std::vector<Chunk> generateWorld(){
+    std::vector<Chunk> chunks;
+    chunks.reserve(worldSize * worldSize * worldSize);
     for(int i = 0; i < worldSize; i++){
         for(int j = 0; j < worldSize; j++){
             for(int k = 0; k < worldSize; k++){
@@ -14,8 +14,10 @@ void generateWorld(){
                 chunk.chunkPosition.i = i;
                 chunk.chunkPosition.j = j;
                 chunk.chunkPosition.k = k;
-                chunks.push_back(chunk);
+                chunks.push_back(std::move(chunk));
             }
         }
     }
+
+    return chunks;
 }

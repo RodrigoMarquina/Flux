@@ -1,6 +1,6 @@
 #include "swapchain.h"
 
-VkResult createSwapchain(VkSwapchainKHR* swapchain, VkFormat* format, VkPhysicalDevice* physicalDevice, VkDevice* logicalDevice, VkSurfaceKHR* surface, uint32_t queueFamilyIndex, GLFWwindow* window, VkExtent2D* extent){
+VkResult createSwapchain(VkSwapchainKHR* swapchain, VkFormat* format, VkPhysicalDevice* physicalDevice, VkDevice* logicalDevice, VkSurfaceKHR* surface, GLFWwindow* window, VkExtent2D* extent){
     VkSurfaceCapabilitiesKHR surfaceCapabilities{};
     VkResult physicalDeviceSurfaceCapabilitiesResult = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(*physicalDevice, *surface, &surfaceCapabilities);
     if(physicalDeviceSurfaceCapabilitiesResult != VK_SUCCESS){
@@ -25,7 +25,7 @@ VkResult createSwapchain(VkSwapchainKHR* swapchain, VkFormat* format, VkPhysical
     //Format & Colorspace
     *format = surfaceFormatList[0].format;
     VkColorSpaceKHR colorSpace = surfaceFormatList[0].colorSpace;
-    for(int i = 0; i < surfaceFormatList.size(); i++){
+    for(size_t i = 0; i < surfaceFormatList.size(); i++){
         if(surfaceFormatList[i].format == VK_FORMAT_B8G8R8A8_SRGB && surfaceFormatList[i].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR){
             *format = surfaceFormatList[i].format;
             colorSpace = surfaceFormatList[i].colorSpace;
@@ -48,7 +48,7 @@ VkResult createSwapchain(VkSwapchainKHR* swapchain, VkFormat* format, VkPhysical
 	} 
 
     VkPresentModeKHR presentMode = VK_PRESENT_MODE_FIFO_KHR;
-    for(int i = 0; i < presentModeList.size(); i++){
+    for(size_t i = 0; i < presentModeList.size(); i++){
         if(presentModeList[i] == VK_PRESENT_MODE_MAILBOX_KHR){
             presentMode = presentModeList[i];
         }
@@ -82,8 +82,7 @@ VkResult createSwapchain(VkSwapchainKHR* swapchain, VkFormat* format, VkPhysical
     swapchainInfo.imageExtent = {extent->width, extent->height};
     swapchainInfo.imageArrayLayers = 1; //More than 1 is for stereoscopic/VR
     swapchainInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-    swapchainInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE; //One queue family owns it
-    swapchainInfo.queueFamilyIndexCount = 0; //When exclusive
+    swapchainInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE; //One queue family owns it  
     swapchainInfo.preTransform = surfaceCapabilities.currentTransform;
     swapchainInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR; //No window Transparency
     swapchainInfo.presentMode = presentMode;

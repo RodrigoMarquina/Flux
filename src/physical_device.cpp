@@ -19,10 +19,15 @@ VkResult selectPhysicalDevice(VkInstance* instance, VkSurfaceKHR* surface, VkPhy
         std::vector<VkQueueFamilyProperties> devProperties(propertyCount);
         vkGetPhysicalDeviceQueueFamilyProperties(dev, &propertyCount, devProperties.data());
 
-        for(int i = 0; i < devProperties.size(); i++){
+        for(uint32_t i = 0; i < devProperties.size(); i++){
             if(devProperties[i].queueFlags & VK_QUEUE_GRAPHICS_BIT){
                 VkBool32 support = false;
                 VkResult supportsSurface = vkGetPhysicalDeviceSurfaceSupportKHR(dev, i, *surface, &support);
+                if(supportsSurface != VK_SUCCESS){
+                    fprintf(stderr, "Surface support query failed.\n");
+                    fprintf(stderr, "VkResult code: %d\n", supportsSurface);
+                    return supportsSurface;
+                }
                 if(support){
                     *physicalDevice = dev;
                     *queueFamilyIndex = i;

@@ -75,7 +75,7 @@ int main(){
 	VkSwapchainKHR swapchain;
 	VkFormat format;
 	VkExtent2D extent;
-	VkResult swapchainResult = createSwapchain(&swapchain, &format, &physicalDevice, &logicalDevice, &surface, queueFamilyIndex, window, &extent);
+	VkResult swapchainResult = createSwapchain(&swapchain, &format, &physicalDevice, &logicalDevice, &surface, window, &extent);
 	if(swapchainResult != VK_SUCCESS){
 		fprintf(stderr, "Failed to create Swapchain.\n");
 		fprintf(stderr, "VkResult code: %d\n", swapchainResult);
@@ -161,7 +161,7 @@ int main(){
 		return 1;
 	}
 
-	generateWorld();
+	std::vector<Chunk> chunks = generateWorld();
 	validateVoxelIndexing(chunks[0]);
 	constexpr uint32_t hotChunkIndex = 9;
 	constexpr uint32_t hotVoxelIndex = 50;

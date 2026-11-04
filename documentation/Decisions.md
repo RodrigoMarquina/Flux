@@ -372,6 +372,29 @@ voxels, not with the size of the world.
 
 ---
 
+## D16 — No global world state; warnings are errors in spirit
+
+*2026-11-04 · Phase 3*
+
+**The world is owned by `main`.** `generateWorld()` returns the chunk vector, and every function that
+reads or changes the world receives it as a parameter. There is no `extern` world.
+
+**Why.** A global can be modified from any file that includes its header, and no function signature
+shows it. Once the simulation is threaded, every hidden global is a potential data race. Returning
+the vector costs nothing: the compiler constructs it directly in the caller (copy elision) or moves
+it. Chunks are moved into the vector with `std::move`, after a `reserve`, so their arrays are never
+copied.
+
+**Zero-warning build.** The `Flux` target compiles with `-Wall -Wextra -Wshadow`. The build must stay
+warning-free: once a few warnings are tolerated, new ones go unnoticed. The first run found a
+shadowed global, an ignored `VkResult`, an unused parameter, and three signed/unsigned comparisons.
+`-Wconversion` is next, once this set stays clean.
+
+**Rejected.** Renaming the shadowing parameter (silences the warning, keeps the global). Filling a
+vector passed by reference (a second call silently appends to the existing world).
+
+---
+
 ## Current voxel layout
 
 | Field | Type | Bytes |

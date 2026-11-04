@@ -40,3 +40,4 @@ target_include_directories(Flux PUBLIC include)
 
 target_link_libraries(Flux glfw Vulkan::Vulkan glm::glm)
 
+target_compile_options(Flux PRIVATE -Wall -Wextra -Wshadow)
