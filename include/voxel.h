@@ -22,8 +22,9 @@ inline constexpr Material materialProperties[] = {
     {2700, 800, 2.0} //Stone 
 };
 
-const double joulesPerEnergyUnit = 0.00001;
-const double voxelEdgeLength = 0.01;
+inline constexpr double joulesPerEnergyUnit = 0.00001;
+inline constexpr double voxelEdgeLength = 0.01;
+inline constexpr double sleepThreshold = 0.1; //K
 
 inline double energyToTemperature(uint32_t energy, MaterialType material){
     return static_cast<double>(energy) * joulesPerEnergyUnit / (materialProperties[static_cast<size_t>(material)].density * 

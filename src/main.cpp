@@ -162,7 +162,14 @@ int main(){
 	}
 
 	generateWorld();
-	chunks[0].energies[950] = 216000000;
+	validateVoxelIndexing(chunks[0]);
+	constexpr uint32_t hotChunkIndex = 9;
+	constexpr uint32_t hotVoxelIndex = 50;
+	constexpr uint32_t hotVoxelEnergy = 216000000;
+	constexpr uint32_t neighbourChunkIndex = 0;
+	constexpr uint32_t neighbourVoxelIndex = 950;
+	chunks[hotChunkIndex].energies[hotVoxelIndex] = hotVoxelEnergy;
+	wakeVoxel(chunks[hotChunkIndex].active, hotVoxelIndex);
 	VkResult createChunkBufferResult;
 	for(Chunk& chunk : chunks){
 		fillFaceRenderList(chunk);
@@ -245,6 +252,7 @@ int main(){
 	double lastX = 0, lastY = 0, currentX = 0, currentY = 0;
 	int visibleChunks = 0;
 	int totalFaces = 0;
+	size_t totalActiveVoxels = 0;
 	uint64_t totalEnergy = 0;
 	float sensitivity = 0.001f;
 	const double dt = 1.0 / 60.0;
@@ -270,16 +278,18 @@ int main(){
 			for(Chunk& chunk : chunks){ 
 				updateTemperatures(chunk);
 			}
-			for(size_t i = 0; i < chunks.size(); i++){
+			for(size_t i = 0; i < chunks.size(); i++){ //Compute loop
 				computeHeatFlow(chunks, i, dt);
 			}
 			std::chrono::steady_clock::time_point simulateTimePost = std::chrono::steady_clock::now();
 			tickCounts++;
 			totalSimulatedTime += std::chrono::duration<double, std::milli>(simulateTimePost - simulateTimePrev).count();
-			for(Chunk& chunk : chunks){ 
+			for(Chunk& chunk : chunks){ //Apply loop
 				applyHeatFlow(chunk);
 			}
+			totalActiveVoxels = 0;
 			for(Chunk& chunk : chunks){ 
+				totalActiveVoxels += chunk.active.voxelIndices.size();
 				totalEnergy += getChunkEnergy(chunk);
 			}
 			accumulator -= dt;
@@ -395,8 +405,9 @@ int main(){
 			std::cout << "Total Chunks: " << chunks.size() << " / Visible Chunks: " << visibleChunks << "\n";
 			std::cout << "Total Faces: " << totalFaces << "\n";
 			std::cout << "Total Energy: " << totalEnergy << "\n";
-			std::cout << "Hot voxel: " << energyToTemperature(chunks[0].energies[950], chunks[0].materials[950]) << "\n"; 
-			std::cout << "Neighbour (chunk 9): " << energyToTemperature(chunks[9].energies[50], chunks[9].materials[50]) << "\n"; 
+			std::cout << "Hot voxel: " << energyToTemperature(chunks[hotChunkIndex].energies[hotVoxelIndex], chunks[hotChunkIndex].materials[hotVoxelIndex]) << "\n"; 
+			std::cout << "Neighbour chunk " << neighbourChunkIndex << ": " << energyToTemperature(chunks[neighbourChunkIndex].energies[neighbourVoxelIndex], chunks[neighbourChunkIndex].materials[neighbourVoxelIndex]) << "\n"; 
+			std::cout << "Total active voxels: " << totalActiveVoxels << "\n";
 			printTimer -= 1.0;
 			frameCount = 0;
 			tickCounts = 0;

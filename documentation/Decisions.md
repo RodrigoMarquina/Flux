@@ -282,6 +282,96 @@ worth orders of magnitude.
 
 ---
 
+## D13 — Voxels sleep below a temperature threshold; no snapping to equilibrium
+
+*2026-11-03 · Phase 3*
+
+A voxel stays on the active list only while the temperature difference with at least one neighbour
+is above a sleep threshold (provisionally 0.1 K). Below it, the voxel is not computed. Any small
+differences that remain stay frozen in place, and the voxel resumes from them if something
+disturbs it again.
+
+**Why.** Diffusion has a long tail. For stone, α = k / (ρc) ≈ 9 × 10⁻⁷ m²/s, and the time to even
+out a distance L is ~L²/α: ~2 minutes across 1 cm, ~3 hours across a 10 cm chunk. If "active" meant
+"any heat still moving", a warm region would cost compute for hours, mostly on differences no player
+can see. A threshold makes "only simulate what matters" a measurable rule. Sleeping moves no energy,
+so conservation holds for free.
+
+D3's integer truncation already stops flow below ~0.03 K for stone at the current `dt`. The
+threshold makes that cutoff a deliberate choice instead of a rounding accident.
+
+**Rejected.** Snapping a settled region to its average temperature. Energy can be redistributed
+exactly, but heat would cross the whole region in one tick, faster than conduction allows. A large
+snapped region becomes a heat teleporter.
+
+**Open.** The threshold value (and whether it depends on the material). How voxels wake up: see D14
+and D15.
+
+---
+
+## D14 — Active list mechanics: two lists, two flags, six directions
+
+*2026-11-03 · Phase 3*
+
+Each chunk keeps `active` (indices computed this tick) and `nextActive` (indices to compute next
+tick), each with its own per-voxel membership flag. The compute pass iterates only `active`:
+
+- **+x, +y, +z:** computed as before (D4: the voxel owns these pairs).
+- **−x, −y, −z:** computed only if the neighbour is not in `active`. An active neighbour computes
+  the pair itself; a sleeping one never would. Every pair is still computed exactly once.
+- **Pair ΔT below the threshold (D13):** skipped entirely — no transfer.
+- **Otherwise:** flow computed, both voxels added to `nextActive` (in their own chunks).
+
+Apply iterates only `nextActive`: since sub-threshold pairs transfer nothing, every voxel with a
+non-zero delta is in it. After apply, the lists and flags swap and the new `nextActive` is cleared
+by iterating it (cost scales with the active count, D7).
+
+**Why two lists.** Appending to a `std::vector` while iterating it can reallocate it, leaving the
+loop's reference pointing at freed memory — undefined behaviour.
+
+**Why two flags.** A voxel can be in `active` but not yet in `nextActive`; one flag cannot hold
+both answers.
+
+**Why not in apply.** Flows must all be computed from one snapshot of temperatures (D11).
+
+**Accepted cost.** Negative directions must cross into the previous chunk, adding a second boundary
+case. The neighbour's `active` flag is read in the hot loop.
+
+---
+
+## D15 — Changing a voxel's energy wakes it; the temperature cache refreshes only active voxels
+
+*2026-11-04 · Phase 3*
+
+Revises D12, which rebuilt the whole cache every tick.
+
+- **At chunk creation:** every voxel's cached temperature is computed once, from its energy.
+- **Each tick:** only the voxels in `active` are refreshed. After the swap, `active` is exactly the
+  set whose energy changed in the previous tick's apply; every other voxel's energy, and therefore its
+  cached temperature, is unchanged.
+- **Rule:** anything that changes a voxel's energy outside the tick (the hot spot today; player
+  tools and fire later) must also wake it. Otherwise its cached temperature goes stale.
+
+Both paths call one helper, so the energy → temperature rule exists in exactly one place.
+
+**Why the full fill is required.** `resize` fills the cache with 0.0 K. Without the fill, sleeping
+voxels read as 0 K: their neighbours push heat into them, wake them, and the error spreads outward as
+a wave. Energy stays conserved throughout. Only the reference temperatures catch it (observed: hot
+voxel 968.275 K instead of 968.503 K after 1 s, 324 active voxels instead of 19).
+
+**Measured** — Release, 27 000 voxels, one hot voxel at 1000 K, ~17 s:
+
+| | Per tick |
+|---|---|
+| D12 (every voxel, every tick) | ~0.27 ms |
+| Active list (19 → 85 active voxels) | ~0.003 → 0.007 ms (~40–90× faster) |
+
+Every printed temperature over 15 s matched the all-voxel run (hot 968.503 → 666.944 K, neighbour
+307.112 → 351.317 K), and the energy total did not change. Cost now grows with the number of active
+voxels, not with the size of the world.
+
+---
+
 ## Current voxel layout
 
 | Field | Type | Bytes |
