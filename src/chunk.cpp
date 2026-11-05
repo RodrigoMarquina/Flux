@@ -39,6 +39,7 @@ void fillFaceRenderList(Chunk& chunk){
     chunk.faceRenderList.clear();
     chunk.faceRenderList.reserve(6 * (chunk.voxelsPerEdge * chunk.voxelsPerEdge));
     static constexpr std::array<GridCoordinate, 6> directions = {{{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}}};
+    const float voxelSize = chunk.size / static_cast<float>(chunk.voxelsPerEdge);
     for(int i = 0; i < chunk.voxelsPerEdge; i++){
         for(int j = 0; j < chunk.voxelsPerEdge; j++){
             for(int k = 0; k < chunk.voxelsPerEdge; k++){
@@ -51,7 +52,7 @@ void fillFaceRenderList(Chunk& chunk){
                         if(ni < 0 || ni >= chunk.voxelsPerEdge || nj < 0 || nj >= chunk.voxelsPerEdge || nk < 0 || nk >= chunk.voxelsPerEdge || 
                             chunk.materials[getVoxelIndex(chunk, ni, nj, nk)] == MaterialType::AIR){
                             FaceInstance faceInstance;
-                            faceInstance.origin = chunk.position + glm::vec3(i, j, k) * (chunk.size / chunk.voxelsPerEdge);
+                            faceInstance.origin = chunk.position + glm::vec3(i, j, k) * voxelSize;
                             faceInstance.faceDirectionIndex = d;
                             faceInstance.temperature = static_cast<float>(energyToTemperature(chunk.energies[index], chunk.materials[index]));
                             chunk.faceRenderList.push_back(faceInstance);

@@ -25,6 +25,7 @@
 #include <vector>
 #include <chrono>
 #include <cstring>
+#include <cmath>
 
 int main(){
 	if(!glfwInit()){
@@ -126,7 +127,7 @@ int main(){
 	}
 
 	std::vector<VkCommandBuffer> commandBuffers(imageViews.size());
-	VkResult allocateCommandBuffersResult = allocateCommandBuffers(&logicalDevice, &commandPool, imageViews.size(), commandBuffers);
+	VkResult allocateCommandBuffersResult = allocateCommandBuffers(&logicalDevice, &commandPool, static_cast<uint32_t>(imageViews.size()), commandBuffers);
 	if(allocateCommandBuffersResult != VK_SUCCESS){
 		fprintf(stderr, "Failed to allocate Command Buffers.\n");
 		fprintf(stderr, "VkResult code: %d\n", allocateCommandBuffersResult);
@@ -154,7 +155,7 @@ int main(){
 	std::vector<VkSemaphore> imageSemaphores(imageViews.size());
 	std::vector<VkSemaphore> renderSemaphores(imageViews.size());
 	VkFence frameFence;
-	VkResult syncObjectsResult = syncObjects(imageSemaphores, renderSemaphores, &frameFence, imageViews.size(), &logicalDevice);
+	VkResult syncObjectsResult = syncObjects(imageSemaphores, renderSemaphores, &frameFence, static_cast<uint32_t>(imageViews.size()), &logicalDevice);
 	if(syncObjectsResult != VK_SUCCESS){
 		fprintf(stderr, "Failed to sync objects.\n");
 		fprintf(stderr, "VkResult code: %d\n", syncObjectsResult);
@@ -221,8 +222,8 @@ int main(){
 	VkPipeline pipeline;
 	VkPipelineLayout pipelineLayout;
 	VkViewport viewport;
-	viewport.width = extent.width;
-	viewport.height = extent.height;
+	viewport.width = static_cast<float>(extent.width);
+	viewport.height = static_cast<float>(extent.height);
 	viewport.x = 0.0f;
 	viewport.y = 0.0f;
 	viewport.minDepth = 0.0f;
@@ -251,7 +252,7 @@ int main(){
 	float yaw = 0.0f, pitch = 0.0f;
 	double lastX = 0.0, lastY = 0.0, currentX = 0.0, currentY = 0.0;
 	int visibleChunks = 0;
-	int totalFaces = 0;
+	size_t totalFaces = 0;
 	size_t totalActiveVoxels = 0;
 	uint64_t totalEnergy = 0;
 	float sensitivity = 0.001f;
@@ -328,12 +329,12 @@ int main(){
 		int space = glfwGetKey(window, GLFW_KEY_SPACE);
 		int shift = glfwGetKey(window, GLFW_KEY_LEFT_SHIFT);
 		glfwGetCursorPos(window, &currentX, &currentY);
-		yaw += (currentX - lastX) * -sensitivity;
-		pitch += (currentY - lastY) * sensitivity;
+		yaw += static_cast<float>(currentX - lastX) * -sensitivity;
+		pitch += static_cast<float>(currentY - lastY) * sensitivity;
 		pitch = glm::clamp(pitch, -1.55f, 1.55f);
-		direction.x = cos(yaw) * cos(pitch);
-		direction.y = sin(pitch);
-		direction.z = sin(yaw) * cos(pitch);
+		direction.x = std::cos(yaw) * std::cos(pitch);
+		direction.y = std::sin(pitch);
+		direction.z = std::sin(yaw) * std::cos(pitch);
 		lastX = currentX;
 		lastY = currentY;
 		glm::vec3 flatDirection = glm::normalize(glm::vec3(direction.x, 0.0f, direction.z));
@@ -356,7 +357,7 @@ int main(){
 			eye += glm::vec3(0.0f, 1.0f, 0.0f) * speed;
 		}
 		UniformBuffer ubo;
-		glm::mat4 projection = glm::perspective(glm::radians(45.0f), extent.width / (float)extent.height, 0.1f, 100.0f);
+		glm::mat4 projection = glm::perspective(glm::radians(45.0f), static_cast<float>(extent.width) / static_cast<float>(extent.height), 0.1f, 100.0f);
 		view = glm::lookAt(eye, eye + direction, glm::vec3(0.0f, -1.0f, 0.0f));
 		projection[1][1] *= -1;
 		ubo.Projection = projection;
@@ -372,7 +373,7 @@ int main(){
 		for(Chunk& chunk : chunks){ //Draw Loop
 			if(isChunkVisible(frustum, chunk.position, chunk.size)){
 				vkCmdBindVertexBuffers(commandBuffers[imageIndex], 1, 1, &chunk.chunkBuffer, &deviceSize);
-				vkCmdDraw(commandBuffers[imageIndex], verticesPerFace, chunk.faceRenderList.size(), 0, 0);
+				vkCmdDraw(commandBuffers[imageIndex], verticesPerFace, static_cast<uint32_t>(chunk.faceRenderList.size()), 0, 0);
 				visibleChunks++;
 			}
 			totalFaces += chunk.faceRenderList.size();
@@ -399,12 +400,12 @@ int main(){
 		presentInfoKHR.pSwapchains = &swapchain;
 		presentInfoKHR.pImageIndices = &imageIndex;
 		vkQueuePresentKHR(queueHandle, &presentInfoKHR);
-		currentFrame = (currentFrame + 1) % imageSemaphores.size();
+		currentFrame = (currentFrame + 1) % static_cast<uint32_t>(imageSemaphores.size());
 		printTimer += elapsedTime;
 		frameCount++;
 		if(printTimer >= 1.0){
 			std::cout << "FPS: " << frameCount / printTimer << "\n";
-			std::cout << "Elapsed simulated time: " << totalTicks * dt << "s" << "\n";
+			std::cout << "Elapsed simulated time: " << static_cast<double>(totalTicks) * dt << "s" << "\n";
 			if(ticksSincePrint > 0){
 				std::cout << "Tick cost: " << totalTickCost / ticksSincePrint << "ms" << "\n";
 			}

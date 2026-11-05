@@ -5,4 +5,4 @@
 #include <iostream>
 #include <vector>
 
-VkResult syncObjects(std::vector<VkSemaphore>& imageSemaphores, std::vector<VkSemaphore>& renderSemaphores, VkFence* frameFence, int imageViewsSize, VkDevice* logicalDevice);
+VkResult syncObjects(std::vector<VkSemaphore>& imageSemaphores, std::vector<VkSemaphore>& renderSemaphores, VkFence* frameFence, uint32_t imageViewsSize, VkDevice* logicalDevice);

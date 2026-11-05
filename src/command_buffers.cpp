@@ -1,6 +1,6 @@
 #include "command_buffers.h"
 
-VkResult allocateCommandBuffers(VkDevice* logicalDevice, VkCommandPool* commandPool, int imageViewsSize, std::vector<VkCommandBuffer>& commandBuffers){
+VkResult allocateCommandBuffers(VkDevice* logicalDevice, VkCommandPool* commandPool, uint32_t imageViewsSize, std::vector<VkCommandBuffer>& commandBuffers){
     VkCommandBufferAllocateInfo commandBufferAllocateInfo {};
     commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     commandBufferAllocateInfo.commandPool = *commandPool;

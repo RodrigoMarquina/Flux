@@ -388,7 +388,8 @@ copied.
 **Zero-warning build.** The `Flux` target compiles with `-Wall -Wextra -Wshadow`. The build must stay
 warning-free: once a few warnings are tolerated, new ones go unnoticed. The first run found a
 shadowed global, an ignored `VkResult`, an unused parameter, and three signed/unsigned comparisons.
-`-Wconversion` is next, once this set stays clean.
+`-Wconversion` was added on 2026-11-05 and is part of the same rule. Its one real finding: plain
+`cos`/`sin` were the C `double` versions, widening every `float` argument and narrowing the result.
 
 **Rejected.** Renaming the shadowing parameter (silences the warning, keeps the global). Filling a
 vector passed by reference (a second call silently appends to the existing world).

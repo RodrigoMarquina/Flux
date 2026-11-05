@@ -5,4 +5,4 @@
 #include <iostream>
 #include <vector>
 
-VkResult allocateCommandBuffers(VkDevice* logicalDevice, VkCommandPool* commandPool, int imageViewsSize, std::vector<VkCommandBuffer>& commandBuffers);
+VkResult allocateCommandBuffers(VkDevice* logicalDevice, VkCommandPool* commandPool, uint32_t imageViewsSize, std::vector<VkCommandBuffer>& commandBuffers);

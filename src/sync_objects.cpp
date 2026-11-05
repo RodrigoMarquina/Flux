@@ -1,9 +1,9 @@
 #include "sync_objects.h"
 
-VkResult syncObjects(std::vector<VkSemaphore>& imageSemaphores, std::vector<VkSemaphore>& renderSemaphores, VkFence* frameFence, int imageViewsSize, VkDevice* logicalDevice){
+VkResult syncObjects(std::vector<VkSemaphore>& imageSemaphores, std::vector<VkSemaphore>& renderSemaphores, VkFence* frameFence, uint32_t imageViewsSize, VkDevice* logicalDevice){
     VkSemaphoreCreateInfo semaphoreCreateInfo {};
     semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-    for(int i = 0; i < imageViewsSize; i++){
+    for(uint32_t i = 0; i < imageViewsSize; i++){
         VkSemaphore imageSemaphore;
         VkResult createSemaphoreResultImage = vkCreateSemaphore(*logicalDevice, &semaphoreCreateInfo, nullptr, &imageSemaphore);
         if(createSemaphoreResultImage != VK_SUCCESS){
@@ -11,7 +11,7 @@ VkResult syncObjects(std::vector<VkSemaphore>& imageSemaphores, std::vector<VkSe
         }
         imageSemaphores[i] = imageSemaphore;
     }
-    for(int i = 0; i < imageViewsSize; i++){
+    for(uint32_t i = 0; i < imageViewsSize; i++){
         VkSemaphore renderSemaphore;
         VkResult createSemaphoreResultRender = vkCreateSemaphore(*logicalDevice, &semaphoreCreateInfo, nullptr, &renderSemaphore);
         if(createSemaphoreResultRender != VK_SUCCESS){
