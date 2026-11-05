@@ -425,6 +425,40 @@ estimate, the active list stops paying off at about 25% of the world awake.
 
 ---
 
+## D18 — The active list stays: measured break-even is ~32% of the world awake
+
+*2026-11-05 · Phase 3*
+
+Replaces D17's 25% estimate with a measurement. Release, 27 000 voxels, one full chunk starting at
+1000 K, 30× time scale. Tick cost covers the temperature and compute phases, the same phases as the
+~0.27 ms all-voxel sweep (D12).
+
+| Active voxels | Share of world | Tick cost | Per active voxel |
+|---|---|---|---|
+| 3 048 | 11% | 0.078 ms | ~26 ns |
+| 6 826 | 25% | 0.211 ms | ~31 ns |
+| ~8 500 | ~32% | ~0.27 ms | ~32 ns |
+| 14 554 | 54% | 0.505 ms | ~35 ns |
+| 17 250 | 64% | 0.623 ms | ~36 ns |
+
+Total energy held at 1 906 000 000 000 in every print.
+
+**Decision.** Keep the active list and continue to gravity. Cost grew steadily with the active count,
+with no sudden jumps. Above ~32% awake the list loses to a plain sweep, and it would cost about 1 ms
+with every voxel awake (extrapolated, not reached in this run). Such events should be brief; a
+mostly sleeping world is the normal case.
+
+**Not covered by this number.** The timer excludes apply and the rest of the loop. Two costs still
+scale with the world, not with activity: `getChunkEnergy` scans every voxel every tick (D10), and
+`fillFaceRenderList` rebuilds every chunk every frame. At 1 m³ these would dominate, so the
+active list alone does not make a large world cheap.
+
+**FPS.** It fell from ~1 400 to ~270 in this run, mostly because of the 30× time scale: ~1 350 ticks
+per second × ~0.6 ms ≈ 0.84 s of timed work per real second, and simulated time slowed to ~22 s per
+print (D10). At 1× the same load is about 37 ms per second.
+
+---
+
 ## Current voxel layout
 
 | Field | Type | Bytes |
