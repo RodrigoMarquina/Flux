@@ -248,29 +248,33 @@ int main(){
 	glm::vec3 eye = glm::vec3(2.0f, -2.0f, 2.0f);
 	glm::vec3 direction = glm::normalize(glm::vec3(-1.0f, 1.0f, -1.0f));
 	glm::mat4 view;
-	float yaw = 0, pitch = 0;
-	double lastX = 0, lastY = 0, currentX = 0, currentY = 0;
+	float yaw = 0.0f, pitch = 0.0f;
+	double lastX = 0.0, lastY = 0.0, currentX = 0.0, currentY = 0.0;
 	int visibleChunks = 0;
 	int totalFaces = 0;
 	size_t totalActiveVoxels = 0;
 	uint64_t totalEnergy = 0;
 	float sensitivity = 0.001f;
 	const double dt = 1.0 / 60.0;
+	constexpr double timeScale = 1.0;
 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 	std::chrono::steady_clock::time_point previousFrameStart = std::chrono::steady_clock::now();
-	double elapsedTime = 0;
-	double accumulator = 0;
-	double printTimer = 0;
+	double elapsedTime = 0.0;
+	double scaledElapsedTime = 0.0;
+	double accumulator = 0.0;
+	double printTimer = 0.0;
 	int frameCount = 0;
-	int tickCounts = 0;
-	double totalSimulatedTime = 0;
+	int ticksSincePrint = 0;
+	uint64_t totalTicks = 0;
+	double totalTickCost = 0.0;
 	const int maxTicksPerFrame = 5; 
 	while(!glfwWindowShouldClose(window)){
 		std::chrono::steady_clock::time_point frameStart = std::chrono::steady_clock::now();
 		elapsedTime = std::chrono::duration<double>(frameStart - previousFrameStart).count();
 		previousFrameStart = frameStart;
 		glfwPollEvents();
-		accumulator += elapsedTime;
+		scaledElapsedTime = elapsedTime * timeScale;
+		accumulator += scaledElapsedTime;
 		int ticks = 0;
 		while(accumulator >= dt && ticks < maxTicksPerFrame){ //Simulate loop
 			totalEnergy = 0;
@@ -282,8 +286,8 @@ int main(){
 				computeHeatFlow(chunks, i, dt);
 			}
 			std::chrono::steady_clock::time_point simulateTimePost = std::chrono::steady_clock::now();
-			tickCounts++;
-			totalSimulatedTime += std::chrono::duration<double, std::milli>(simulateTimePost - simulateTimePrev).count();
+			ticksSincePrint++;
+			totalTickCost += std::chrono::duration<double, std::milli>(simulateTimePost - simulateTimePrev).count();
 			for(Chunk& chunk : chunks){ //Apply loop
 				applyHeatFlow(chunk);
 			}
@@ -292,8 +296,9 @@ int main(){
 				totalActiveVoxels += chunk.active.voxelIndices.size();
 				totalEnergy += getChunkEnergy(chunk);
 			}
+			totalTicks++;
 			accumulator -= dt;
-			ticks += 1;
+			ticks++;
 		}
 		if(ticks == maxTicksPerFrame){
 			accumulator = 0;
@@ -399,8 +404,9 @@ int main(){
 		frameCount++;
 		if(printTimer >= 1.0){
 			std::cout << "FPS: " << frameCount / printTimer << "\n";
-			if(tickCounts > 0){
-				std::cout << "Simulate time: " << totalSimulatedTime / tickCounts << "ms" << "\n";
+			std::cout << "Elapsed simulated time: " << totalTicks * dt << "s" << "\n";
+			if(ticksSincePrint > 0){
+				std::cout << "Tick cost: " << totalTickCost / ticksSincePrint << "ms" << "\n";
 			}
 			std::cout << "Total Chunks: " << chunks.size() << " / Visible Chunks: " << visibleChunks << "\n";
 			std::cout << "Total Faces: " << totalFaces << "\n";
@@ -410,8 +416,8 @@ int main(){
 			std::cout << "Total active voxels: " << totalActiveVoxels << "\n";
 			printTimer -= 1.0;
 			frameCount = 0;
-			tickCounts = 0;
-			totalSimulatedTime = 0;
+			ticksSincePrint = 0;
+			totalTickCost = 0;
 		}
 	}
 

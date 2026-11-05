@@ -395,6 +395,36 @@ vector passed by reference (a second call silently appends to the existing world
 
 ---
 
+## D17 — Accept frozen temperature hills from the sleep threshold, for now
+
+*2026-11-05 · Phase 3*
+
+The sleep threshold (D13) limits the temperature difference between neighbours, not across a region.
+A smooth slope of under 0.1 K per voxel can therefore freeze in place until something disturbs it.
+
+**Measured** — Release, 27 000 voxels, one voxel starting at 1000 K, 30× time scale:
+
+| | Result |
+|---|---|
+| Peak active voxels | ~1 440 at ~850–910 s simulated (~5% of the world) |
+| All voxels asleep | between 1 605 s and 1 634 s simulated |
+| Hot voxel at rest | 302.197 K, ~1.25 K above the world average of ~300.95 K |
+| Tick cost at peak / at rest | ~0.06 ms / ~0.00024 ms (all-voxel sweep: ~0.27 ms) |
+| Total energy | unchanged in every print |
+
+**Why accept it.** Energy stays exact, the difference is invisible, and any disturbance wakes the
+region and lets it continue settling. Physics only has to be reliable and believable.
+
+**Known limitation.** A frozen hill can rise by up to 0.1 K per voxel, so a 50-voxel slope could hold
+about 5 K. That could matter once melting exists: a voxel could freeze a few kelvin below its melting
+point. Revisit in Phase 4.
+
+**Accepted cost.** An active voxel costs roughly 40 ns per tick against ~10 ns per voxel in the plain
+sweep (six directions, flag checks, coordinate divisions, out-of-order memory access). On this
+estimate, the active list stops paying off at about 25% of the world awake.
+
+---
+
 ## Current voxel layout
 
 | Field | Type | Bytes |
@@ -408,3 +438,7 @@ vector passed by reference (a second call silently appends to the existing world
 
 - **Electrical energy.** Current is driven by potential difference, a new kind of quantity, not more
   energy. Belongs to the Electrical Age.
+- **Slow ticks for slow regions.** Instead of freezing a low-gradient region, tick it less often with
+  a larger `dt`. Stone stays stable up to ~18 s per step. Could cost less and flatten frozen hills
+  (D17), since larger steps also lower the difference at which flow rounds to zero. Not designed or
+  tested yet.
