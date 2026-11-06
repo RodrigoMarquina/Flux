@@ -7,6 +7,8 @@
 #include <vector>
 #include <cassert>
 
+inline constexpr double initialTemperature = 300.0;
+
 struct GridCoordinate{
     int i = 0;
     int j = 0;
@@ -72,9 +74,9 @@ inline void validateVoxelIndexing([[maybe_unused]] const Chunk& chunk) {
 
 void wakeVoxel(ActiveSet& activeSet, uint32_t voxelIndex);
 
-inline constexpr uint32_t stoneAt300k = 65000000;
-
 void computeHeatFlow(std::vector<Chunk>& chunks, size_t chunkIndex, double dt);
+
+void computeFalling(std::vector<Chunk>& chunks, size_t chunkIndex);
 
 void applyHeatFlow(Chunk& chunk);
 
@@ -84,6 +86,6 @@ uint64_t getChunkEnergy(const Chunk& chunk);
 
 void fillFaceRenderList(Chunk& chunk);
 
-void initializeChunk(Chunk& chunk);
+void initializeChunk(Chunk& chunk, MaterialType material);
 
 VkResult createChunkBuffer(VkDevice* logicalDevice, VkPhysicalDevice* physicalDevice, Chunk& chunk);

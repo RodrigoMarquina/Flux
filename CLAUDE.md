@@ -22,7 +22,7 @@ The world is composed entirely of voxels. Each voxel stores:
 - `material_type` — what it is (stone, copper, water, air...)
 - `temperature` — current heat in kelvin, spreads to neighbors
 - `connections[]` — bitmask of active structural bonds to 6 neighbors
-- `state` — solid, granular, liquid, gas
+- `state` — solid, liquid, gas (loose material like sand is not a state: it is any solid with few or no bonds)
 - `conductivity` — rate of heat and electrical transfer
 - `velocity` — movement vector, non-zero only when active
 

@@ -10,7 +10,8 @@ std::vector<Chunk> generateWorld(){
                 chunk.size = 10.0f;
                 chunk.position = glm::vec3(i, j, k) * chunk.size;
                 chunk.voxelsPerEdge = voxelsPerChunk;
-                initializeChunk(chunk);
+                const MaterialType material = (j < airLayers) ? MaterialType::AIR : MaterialType::STONE;
+                initializeChunk(chunk, material);
                 chunk.chunkPosition.i = i;
                 chunk.chunkPosition.j = j;
                 chunk.chunkPosition.k = k;

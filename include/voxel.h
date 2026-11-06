@@ -3,6 +3,9 @@
 #include <cstdint>
 #include <iterator>
 #include <cstddef>
+#include <limits>
+#include <cassert>
+#include <cmath>
 
 enum class MaterialType:uint8_t {
     AIR,
@@ -29,6 +32,15 @@ inline constexpr double sleepThreshold = 0.1; //K
 inline double energyToTemperature(uint32_t energy, MaterialType material){
     return static_cast<double>(energy) * joulesPerEnergyUnit / (materialProperties[static_cast<size_t>(material)].density * 
     (voxelEdgeLength * voxelEdgeLength * voxelEdgeLength) * materialProperties[static_cast<size_t>(material)].specificHeatCapacity);
+}
+
+inline uint32_t temperatureToEnergy(double temperature, MaterialType material){
+    assert(temperature >= 0 && "Temperature can't be negative.");
+    const Material& properties = materialProperties[static_cast<size_t>(material)];
+    double energy = std::round(temperature * properties.density * (voxelEdgeLength * voxelEdgeLength * voxelEdgeLength) * 
+    properties.specificHeatCapacity / joulesPerEnergyUnit);
+    assert(energy <= std::numeric_limits<uint32_t>::max() && "Energy is bigger than uint32_t.");  
+    return static_cast<uint32_t>(energy);
 }
 
 static_assert(std::size(materialProperties) == static_cast<std::size_t>(MaterialType::COUNT),

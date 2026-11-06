@@ -7,7 +7,11 @@ std::vector<Chunk> generateWorld();
 
 inline constexpr int worldSize = 3;
 
+inline constexpr int airLayers = 2;
+
 inline constexpr int voxelsPerChunk = 10;
+
+inline constexpr size_t maxFacesPerChunk = 6 * (voxelsPerChunk * voxelsPerChunk * voxelsPerChunk) / 2;
 
 inline size_t getChunkIndex(int ci, int cj, int ck){
     assert(ci >= 0 && ci < worldSize && "ci is out of range.");

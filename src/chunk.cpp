@@ -5,10 +5,10 @@
 #include <algorithm>
 #include <cmath>
 
-void initializeChunk(Chunk& chunk){
+void initializeChunk(Chunk& chunk, MaterialType material){
     const size_t voxelCount = static_cast<size_t>(chunk.voxelsPerEdge) * chunk.voxelsPerEdge * chunk.voxelsPerEdge;
-    chunk.materials.assign(voxelCount, MaterialType::STONE);
-    chunk.energies.assign(voxelCount, stoneAt300k);
+    chunk.materials.assign(voxelCount, material);
+    chunk.energies.assign(voxelCount, temperatureToEnergy(initialTemperature, material));
     chunk.deltaArray.resize(voxelCount);
     chunk.temperatures.resize(voxelCount);
     for(size_t index = 0; index < voxelCount; index++){
@@ -129,6 +129,41 @@ void computeHeatFlow(std::vector<Chunk>& chunks, size_t chunkIndex, double dt){
     }          
 }
 
+void computeFalling(std::vector<Chunk>& chunks, size_t chunkIndex){
+    Chunk& chunk = chunks[chunkIndex];
+    for(uint32_t presentIndex : chunk.active.voxelIndices){
+        GridCoordinate voxelCoordinates = getVoxelCoordinates(chunk, presentIndex);
+        double presentVoxelDensity = materialProperties[static_cast<size_t>(chunk.materials[presentIndex])].density;
+        size_t neighbourChunkIndex = 0;
+        size_t neighbourVoxelIndex = 0;
+        int nj = voxelCoordinates.j + 1;
+        if(nj    < chunk.voxelsPerEdge){
+            neighbourChunkIndex = chunkIndex;
+            neighbourVoxelIndex = getVoxelIndex(chunk, voxelCoordinates.i, nj, voxelCoordinates.k);
+        } else{
+            GridCoordinate neighbourChunkCoordinate;
+            neighbourChunkCoordinate.i = chunk.chunkPosition.i;
+            neighbourChunkCoordinate.j = chunk.chunkPosition.j + 1;
+            neighbourChunkCoordinate.k = chunk.chunkPosition.k;
+            if(neighbourChunkCoordinate.j >= worldSize){
+                continue;
+            }
+            neighbourChunkIndex = getChunkIndex(neighbourChunkCoordinate.i, neighbourChunkCoordinate.j, neighbourChunkCoordinate.k);
+            nj = 0;
+            neighbourVoxelIndex = getVoxelIndex(chunks[neighbourChunkIndex], voxelCoordinates.i, nj, voxelCoordinates.k);
+        }
+        Chunk& neighbourChunk = chunks[neighbourChunkIndex];
+        double neighbourVoxelDensity = materialProperties[static_cast<size_t>(neighbourChunk.materials[neighbourVoxelIndex])].density;
+        if(presentVoxelDensity <= neighbourVoxelDensity){
+            continue;
+        }
+        std::swap(chunk.materials[presentIndex], neighbourChunk.materials[neighbourVoxelIndex]);
+        std::swap(chunk.energies[presentIndex], neighbourChunk.energies[neighbourVoxelIndex]);
+        std::swap(chunk.temperatures[presentIndex], neighbourChunk.temperatures[neighbourVoxelIndex]);
+        wakeVoxel(neighbourChunk.nextActive, static_cast<uint32_t>(neighbourVoxelIndex));
+    }
+}
+
 void applyHeatFlow(Chunk& chunk){
     for(uint32_t index : chunk.nextActive.voxelIndices){
         int64_t newEnergy = chunk.energies[index] + chunk.deltaArray[index];
@@ -153,7 +188,7 @@ void updateTemperatures(Chunk& chunk){
 VkResult createChunkBuffer(VkDevice* logicalDevice, VkPhysicalDevice* physicalDevice, Chunk& chunk){
     VkBufferCreateInfo bufferCreateInfo {};
     bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferCreateInfo.size = sizeof(FaceInstance) * chunk.faceRenderList.size();
+    bufferCreateInfo.size = sizeof(FaceInstance) * maxFacesPerChunk;
     bufferCreateInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
     bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 

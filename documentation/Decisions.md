@@ -460,6 +460,151 @@ print (D10). At 1× the same load is about 37 ms per second.
 
 ---
 
+## D19 — Granular is not a state
+
+*2026-11-05 · Phase 3*
+
+States are solid, liquid and gas, all derived from energy (D5). "Granular" is not a state: it is solid
+material with few or no bonds. A rock is many bonded voxels, gravel is small bonded clusters, and a
+sand voxel has no bonds at all.
+
+**Why.** Looseness is already described by `connections`. A separate state would be a second source
+of truth that could disagree with the bonds. It also could not be derived from energy like the other
+states.
+
+**Limit.** Real sand grains are far smaller than a 1 cm voxel, so a sand voxel stands for a bulk of
+grains, and cluster size can only describe particles down to one voxel.
+
+**Open.** Unbonded voxels must slide to form piles rather than stack in columns.
+
+---
+
+## D20 — Bonded voxels move as one piece
+
+*2026-11-05 · Phase 3*
+
+A group of bonded voxels moves as a single piece. It does not fall voxel by voxel.
+
+**Why.** Phase 6 needs a stone tool that falls, stays whole and can be picked up. Voxels moving
+independently would pull a bonded rock apart.
+
+**Accepted cost.** The voxels of a piece must be found by following its bonds. This only needs to
+happen when something changes, such as a bond breaking, not every tick.
+
+**Open.** How a piece's voxels are found cheaply. How a moving piece is stored is answered by D23, and
+rotation by D22.
+
+---
+
+## D21 — Sand and gravel are interpretations, not definitions
+
+*2026-11-05 · Phase 3*
+
+Corrects D19, which described a sand voxel as standing for a bulk of grains.
+
+FLUX has no sand or gravel material and no rule that defines them. Any material can be loose: copper
+broken into single voxels or small clusters is copper sand. "Sand" is what a player calls the result
+of a material and its bonds.
+
+**Why.** Emergent, not scripted: looseness comes from `connections`, so every material gets it with
+no extra rules.
+
+**Limit.** The smallest possible piece is still one voxel.
+
+---
+
+## D22 — Rotation is planned, but not in the first version
+
+*2026-11-05 · Phase 3*
+
+The first version of moving pieces does not rotate. Rotation is still part of the architecture and
+will be added later. A moving piece stores its voxels relative to one origin point, so the piece can
+be moved, and later turned, without rewriting the position of every voxel.
+
+**Why not now.** Falling, landing and picking up a piece do not need it, and it would make the first
+version much harder to get right.
+
+**Why it must be planned.** `EnergyEconomy.md` depends on water wheels and flywheels, which spin. Without
+rotation, a piece hanging over a ledge also needs other rules to avoid staying there forever.
+
+**Open.** How spinning machines work. How rotated voxels return to the grid is answered by D23.
+
+---
+
+## D23 — A moving piece is computed on paper; the grid holds only its footprint
+
+*2026-11-05 · Phase 3*
+
+**Status: working direction, not final.** To be tested by building, starting from single voxels.
+
+While a rigid piece moves, its truth lives in a temporary record: position, velocity, angle, spin and
+the data of its voxels. Each grid cell it covers holds only a marker naming the piece. When the piece
+stops, its voxel data is written back to the grid and the record is deleted.
+
+Voxels never rotate. They stay aligned cubes, and only their positions follow the piece, so a turning
+piece appears as a stair-stepped shape. Each voxel's cell is calculated from the piece's original
+shape, never from its previous cell, so rounding errors cannot build up.
+
+**The rule that protects emergence.** Paper may only replace calculations whose answer it reproduces.
+Anything it cannot represent, such as a bond breaking, melting or a piece splitting, goes back to
+voxels, and voxel rules decide.
+
+**Why.**
+- Every voxel in a rigid piece has the same motion, so one set of numbers gives the same result as a
+  million. This is compression, not approximation, and it follows from D20.
+- Simulating each voxel would be less real. A push travels one cell per tick, 0.6 m/s, so a 1 m rock
+  would take about 1.7 s to react at its far end. Matching stone at about 4,000 m/s would take about
+  6,700 passes per tick.
+- Two voxels rounding into one cell delete nothing, because their data is in the record.
+
+**How it works.**
+- A move checks the cells the piece would enter, nearest first. Air: the piece moves in. Solid: that
+  is the contact point. Checking every entered cell also prevents tunnelling at any speed.
+- Only cells the piece enters or leaves are written. Markers inside it stay the same.
+- In a straight move, cells entered equal cells left, so air from the front moves to the cells behind.
+- Contact away from the center of mass produces spin, so tipping needs no special rule.
+
+**Accepted costs.**
+- Cost grows with speed. A 1 m boulder needs about 20,000 writes per cell moved, and about 320,000 per
+  tick at 16 cells per tick. That is very roughly 10 ms, estimated, not measured.
+- Heat inside a piece pauses while it moves in the first version.
+- A rigid piece cannot slowly bend.
+
+**Open.** How the marker is stored, and what it adds to per-voxel state. Water and sand in a piece's
+path. Air when rotation makes cells entered and left differ. Heat in long-lived moving pieces, which
+could run the same rule in the record's own small grid. Whether single loose voxels use a record or
+swap in the grid. How impacts crack a piece, which needs bonds.
+
+---
+
+## D24 — Single voxels fall by swapping, first in the tick
+
+*2026-11-06 · Phase 3*
+
+An active voxel swaps with the cell below it if it is strictly denser. The swap exchanges `materials`,
+`energies` and `temperatures`. Falling runs first in the tick, before `updateTemperatures`.
+
+**Density, not material names.** The rule never names stone or air, so any material follows it. Strictly
+denser matters: with equal densities allowed, resting stone would swap with stone and never sleep.
+
+**Why first.** `deltaArray` holds pending heat by cell from compute until apply. A voxel moved between
+them would leave its heat behind on the wrong cell.
+
+**Staying awake.** `nextActive` works as a vote: any system that needs a voxel next tick wakes it there.
+A voxel with no votes sleeps, and `applyHeatFlow` does not need to know why.
+
+**New cells join `active` in a second step.** The falling pass wakes the new cell in `nextActive`. After
+the pass has finished for all chunks, every index in `nextActive` is also woken in `active`.
+- Pushing into `active` during the pass is undefined behavior if it is the list being looped over, and
+  could move a voxel more than once in a tick.
+- Merging afterwards means the new cell gets its heat calculated that tick, so a falling voxel keeps
+  exchanging heat. Falling and heat alternate, one tick each, which stands in for them happening at once.
+
+**Limits.** One cell per tick is 0.6 m/s, with no acceleration. A voxel only falls straight down, so a
+one-voxel tower can stand. Nothing wakes a voxel when the one under it moves away.
+
+---
+
 ## Current voxel layout
 
 | Field | Type | Bytes |
@@ -471,6 +616,17 @@ print (D10). At 1× the same load is about 37 ms per second.
 
 ## Parked
 
+- **Motion design questions.** To resume once a single voxel falls and lands:
+  - Conflicts when two voxels or pieces want the same cell.
+  - Energy accounting: height to speed to heat, and what the conservation check adds up. Proposed, not
+    decided: height energy is a whole number per material and cell height, a piece stores its
+    mechanical energy as an integer, and landing heat is integer subtraction.
+  - How moving voxels stay in the active list, and where velocity data lives.
+  - Whether D23 holds up, and its open items.
+  - How a piece's voxels are found (D20) and the tipping rule.
+  - Piles sliding: a blocked voxel tries the four diagonal cells below it. Needs fair direction choice
+    and neighbours waking when a voxel moves away.
+  - Spinning machines (D22).
 - **Electrical energy.** Current is driven by potential difference, a new kind of quantity, not more
   energy. Belongs to the Electrical Age.
 - **Slow ticks for slow regions.** Instead of freezing a low-gradient region, tick it less often with

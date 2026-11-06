@@ -163,14 +163,14 @@ int main(){
 	}
 
 	std::vector<Chunk> chunks = generateWorld();
+
 	validateVoxelIndexing(chunks[0]);
-	constexpr uint32_t hotChunkIndex = 9;
-	constexpr uint32_t hotVoxelIndex = 50;
-	constexpr uint32_t hotVoxelEnergy = 216000000;
-	constexpr uint32_t neighbourChunkIndex = 0;
-	constexpr uint32_t neighbourVoxelIndex = 950;
-	chunks[hotChunkIndex].energies[hotVoxelIndex] = hotVoxelEnergy;
-	wakeVoxel(chunks[hotChunkIndex].active, hotVoxelIndex);
+	constexpr uint32_t fallingChunkIndex = 9;
+	constexpr uint32_t fallingVoxelIndex = 50;
+	chunks[fallingChunkIndex].materials[fallingVoxelIndex] = MaterialType::STONE;
+	chunks[fallingChunkIndex].energies[fallingVoxelIndex] = temperatureToEnergy(initialTemperature, MaterialType::STONE);
+	refreshVoxelTemperature(chunks[fallingChunkIndex], fallingVoxelIndex);
+	wakeVoxel(chunks[fallingChunkIndex].active, fallingVoxelIndex);
 	VkResult createChunkBufferResult;
 	for(Chunk& chunk : chunks){
 		fillFaceRenderList(chunk);
@@ -257,7 +257,7 @@ int main(){
 	uint64_t totalEnergy = 0;
 	float sensitivity = 0.001f;
 	const double dt = 1.0 / 60.0;
-	constexpr double timeScale = 1.0;
+	constexpr double timeScale = 0.1;
 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 	std::chrono::steady_clock::time_point previousFrameStart = std::chrono::steady_clock::now();
 	double elapsedTime = 0.0;
@@ -280,6 +280,14 @@ int main(){
 		while(accumulator >= dt && ticks < maxTicksPerFrame){ //Simulate loop
 			totalEnergy = 0;
 			std::chrono::steady_clock::time_point simulateTimePrev = std::chrono::steady_clock::now();
+			for(size_t i = 0; i < chunks.size(); i++){ 
+				computeFalling(chunks, i);			
+			}
+			for(Chunk& chunk : chunks){
+				for(uint32_t index : chunk.nextActive.voxelIndices){
+					wakeVoxel(chunk.active, index);
+				}
+			}
 			for(Chunk& chunk : chunks){ 
 				updateTemperatures(chunk);
 			}
@@ -307,6 +315,7 @@ int main(){
 		vkWaitForFences(logicalDevice, 1, &frameFence, VK_TRUE, UINT64_MAX); //Infinite wait
 		for(Chunk& chunk : chunks){
 			fillFaceRenderList(chunk);
+			assert(chunk.faceRenderList.size() <= maxFacesPerChunk && "More faces than the chunk buffer can hold.");
 			memcpy(chunk.memoryMap, chunk.faceRenderList.data(), sizeof(FaceInstance) * chunk.faceRenderList.size());
 		}
 		vkResetFences(logicalDevice, 1, &frameFence);
@@ -412,8 +421,6 @@ int main(){
 			std::cout << "Total Chunks: " << chunks.size() << " / Visible Chunks: " << visibleChunks << "\n";
 			std::cout << "Total Faces: " << totalFaces << "\n";
 			std::cout << "Total Energy: " << totalEnergy << "\n";
-			std::cout << "Hot voxel: " << energyToTemperature(chunks[hotChunkIndex].energies[hotVoxelIndex], chunks[hotChunkIndex].materials[hotVoxelIndex]) << "\n"; 
-			std::cout << "Neighbour chunk " << neighbourChunkIndex << ": " << energyToTemperature(chunks[neighbourChunkIndex].energies[neighbourVoxelIndex], chunks[neighbourChunkIndex].materials[neighbourVoxelIndex]) << "\n"; 
 			std::cout << "Total active voxels: " << totalActiveVoxels << "\n";
 			printTimer -= 1.0;
 			frameCount = 0;
