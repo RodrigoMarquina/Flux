@@ -6,6 +6,7 @@
 #include <vulkan/vulkan.h>
 #include <vector>
 #include <cassert>
+#include <optional>
 
 inline constexpr double initialTemperature = 300.0;
 
@@ -15,7 +16,12 @@ struct GridCoordinate{
     int k = 0;
 };
 
-struct ActiveSet{
+struct VoxelLocation{
+    size_t chunkIndex = 0;
+    size_t voxelIndex = 0;
+};
+
+struct VoxelSet{
     std::vector<uint32_t> voxelIndices;
     std::vector<uint8_t> voxelFlags;
 };
@@ -25,8 +31,9 @@ struct Chunk{
     std::vector<uint32_t> energies;
     std::vector<int64_t> deltaArray; 
     std::vector<float> temperatures;
-    ActiveSet active;
-    ActiveSet nextActive;
+    VoxelSet active;
+    VoxelSet nextActive;
+    VoxelSet vacated;
     GridCoordinate chunkPosition = {};
     glm::vec3 position = {};
     int voxelsPerEdge = 0;
@@ -42,6 +49,10 @@ inline size_t getVoxelIndex(const Chunk& chunk, int i, int j, int k){
     assert(j >= 0 && j < chunk.voxelsPerEdge && "j is out of range.");
     assert(k >= 0 && k < chunk.voxelsPerEdge && "k is out of range.");
     return static_cast<size_t>(i) * chunk.voxelsPerEdge * chunk.voxelsPerEdge + static_cast<size_t>(j) * chunk.voxelsPerEdge + static_cast<size_t>(k);
+}
+
+inline bool isVacated(const std::vector<Chunk>& chunks, const VoxelLocation& location){
+    return chunks[location.chunkIndex].vacated.voxelFlags[location.voxelIndex] == 1;
 }
 
 inline GridCoordinate getVoxelCoordinates(const Chunk& chunk, size_t index){
@@ -72,11 +83,11 @@ inline void validateVoxelIndexing([[maybe_unused]] const Chunk& chunk) {
     #endif
 }
 
-void wakeVoxel(ActiveSet& activeSet, uint32_t voxelIndex);
+void wakeVoxel(VoxelSet& voxelSet, uint32_t voxelIndex);
 
 void computeHeatFlow(std::vector<Chunk>& chunks, size_t chunkIndex, double dt);
 
-void computeFalling(std::vector<Chunk>& chunks, size_t chunkIndex);
+void computeFalling(std::vector<Chunk>& chunks, size_t chunkIndex, uint64_t tick);
 
 void applyHeatFlow(Chunk& chunk);
 

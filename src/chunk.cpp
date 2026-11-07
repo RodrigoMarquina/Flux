@@ -5,6 +5,12 @@
 #include <algorithm>
 #include <cmath>
 
+static constexpr GridCoordinate downDirection = {0, 1, 0};
+static constexpr GridCoordinate upDirection = {0, -1, 0};
+static constexpr std::array<GridCoordinate, 10> wakeDirections = {{{0, -1, 0}, {0, 1, 0}, {1, 0, 0}, {-1, 0, 0}, {0, 0, 1}, {0, 0, -1}, {1, -1, 0}, {-1, -1, 0}, {0, -1, 1}, {0, -1, -1}}};
+static constexpr std::array<GridCoordinate, 4> sideDirections = {{{1, 0, 0}, {-1, 0, 0}, {0, 0, 1}, {0, 0, -1}}};
+static constexpr std::array<GridCoordinate, 6> faceDirections = {{{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}}};
+
 void initializeChunk(Chunk& chunk, MaterialType material){
     const size_t voxelCount = static_cast<size_t>(chunk.voxelsPerEdge) * chunk.voxelsPerEdge * chunk.voxelsPerEdge;
     chunk.materials.assign(voxelCount, material);
@@ -16,6 +22,7 @@ void initializeChunk(Chunk& chunk, MaterialType material){
     }
     chunk.active.voxelFlags.assign(voxelCount, 0);
     chunk.nextActive.voxelFlags.assign(voxelCount, 0);
+    chunk.vacated.voxelFlags.assign(voxelCount, 0);
 }
 
 uint64_t getChunkEnergy(const Chunk& chunk){
@@ -27,18 +34,17 @@ uint64_t getChunkEnergy(const Chunk& chunk){
     return totalEnergy;
 }
 
-void wakeVoxel(ActiveSet& activeSet, uint32_t voxelIndex){
-    assert(voxelIndex < activeSet.voxelFlags.size() && "Index out of range.");
-    if(activeSet.voxelFlags[voxelIndex] != 1){
-        activeSet.voxelIndices.push_back(voxelIndex);
-        activeSet.voxelFlags[voxelIndex] = 1;
+void wakeVoxel(VoxelSet& voxelSet, uint32_t voxelIndex){
+    assert(voxelIndex < voxelSet.voxelFlags.size() && "Index out of range.");
+    if(voxelSet.voxelFlags[voxelIndex] != 1){
+        voxelSet.voxelIndices.push_back(voxelIndex);
+        voxelSet.voxelFlags[voxelIndex] = 1;
     }
 }
 
 void fillFaceRenderList(Chunk& chunk){
     chunk.faceRenderList.clear();
     chunk.faceRenderList.reserve(6 * (chunk.voxelsPerEdge * chunk.voxelsPerEdge));
-    static constexpr std::array<GridCoordinate, 6> directions = {{{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}}};
     const float voxelSize = chunk.size / static_cast<float>(chunk.voxelsPerEdge);
     for(int i = 0; i < chunk.voxelsPerEdge; i++){
         for(int j = 0; j < chunk.voxelsPerEdge; j++){
@@ -46,9 +52,9 @@ void fillFaceRenderList(Chunk& chunk){
                 size_t index = getVoxelIndex(chunk, i, j, k);
                 if(chunk.materials[index] != MaterialType::AIR){
                     for(uint8_t d = 0; d < 6; d++){
-                        int ni = i + directions[d].i;
-                        int nj = j + directions[d].j;
-                        int nk = k + directions[d].k;
+                        int ni = i + faceDirections[d].i;
+                        int nj = j + faceDirections[d].j;
+                        int nk = k + faceDirections[d].k;
                         if(ni < 0 || ni >= chunk.voxelsPerEdge || nj < 0 || nj >= chunk.voxelsPerEdge || nk < 0 || nk >= chunk.voxelsPerEdge || 
                             chunk.materials[getVoxelIndex(chunk, ni, nj, nk)] == MaterialType::AIR){
                             FaceInstance faceInstance;
@@ -64,52 +70,72 @@ void fillFaceRenderList(Chunk& chunk){
     }
 }
 
+std::optional<VoxelLocation> findNeighbour(const std::vector<Chunk>& chunks, size_t chunkIndex, GridCoordinate voxelCoordinates, GridCoordinate direction){
+    const Chunk& chunk = chunks[chunkIndex];
+    assert(direction.i >= -1 && direction.i <= 1 && "Direction i must be -1, 0 or 1.");
+    assert(direction.j >= -1 && direction.j <= 1 && "Direction j must be -1, 0 or 1.");
+    assert(direction.k >= -1 && direction.k <= 1 && "Direction k must be -1, 0 or 1.");    
+    int ni = voxelCoordinates.i + direction.i;
+    int nj = voxelCoordinates.j + direction.j;
+    int nk = voxelCoordinates.k + direction.k;
+    VoxelLocation location;
+    if(ni >= 0 && ni < chunk.voxelsPerEdge && nj >= 0 && nj < chunk.voxelsPerEdge && nk >= 0 && nk < chunk.voxelsPerEdge){
+        location.chunkIndex = chunkIndex;
+        location.voxelIndex = getVoxelIndex(chunk, ni, nj, nk);
+        return location;
+    } else{
+        GridCoordinate chunkStep;
+        if(ni == chunk.voxelsPerEdge){
+            ni = 0;
+            chunkStep.i = 1;
+        } else if(ni == -1){
+            ni = chunk.voxelsPerEdge - 1;
+            chunkStep.i = -1;
+        }
+        if(nj == chunk.voxelsPerEdge){
+            nj = 0;
+            chunkStep.j = 1;
+        } else if(nj == -1){
+            nj = chunk.voxelsPerEdge - 1;
+            chunkStep.j = -1;
+        }
+        if(nk == chunk.voxelsPerEdge){
+            nk = 0;
+            chunkStep.k = 1;
+        } else if(nk == -1){
+            nk = chunk.voxelsPerEdge - 1;
+            chunkStep.k = -1;
+        }
+        GridCoordinate neighbourChunkCoordinate;
+        neighbourChunkCoordinate.i = chunk.chunkPosition.i + chunkStep.i;
+        neighbourChunkCoordinate.j = chunk.chunkPosition.j + chunkStep.j;
+        neighbourChunkCoordinate.k = chunk.chunkPosition.k + chunkStep.k;
+        if(neighbourChunkCoordinate.i < 0 || neighbourChunkCoordinate.i >= worldSize || 
+            neighbourChunkCoordinate.j < 0 || neighbourChunkCoordinate.j >= worldSize || 
+            neighbourChunkCoordinate.k < 0 || neighbourChunkCoordinate.k >= worldSize){
+            return std::nullopt;
+        }
+        location.chunkIndex = getChunkIndex(neighbourChunkCoordinate.i, neighbourChunkCoordinate.j, neighbourChunkCoordinate.k);
+        location.voxelIndex = getVoxelIndex(chunks[location.chunkIndex], ni, nj, nk);
+        return location;
+    }
+}
+
 void computeHeatFlow(std::vector<Chunk>& chunks, size_t chunkIndex, double dt){
-    static constexpr std::array<GridCoordinate, 6> directions = {{{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}}};
     Chunk& chunk = chunks[chunkIndex];
     for(uint32_t presentIndex : chunk.active.voxelIndices){
         GridCoordinate voxelCoordinates = getVoxelCoordinates(chunk, presentIndex);
         double presentVoxelTemperature = chunk.temperatures[presentIndex];
         double presentConductivity = materialProperties[static_cast<size_t>(chunk.materials[presentIndex])].conductivity;
         for(uint8_t d = 0; d < 6; d++){
-            int ni = voxelCoordinates.i + directions[d].i;
-            int nj = voxelCoordinates.j + directions[d].j;
-            int nk = voxelCoordinates.k + directions[d].k;
-            size_t neighbourChunkIndex = 0;
-            size_t neighbourVoxelIndex = 0;
-            if(ni >= 0 && ni < chunk.voxelsPerEdge && nj >= 0 && nj < chunk.voxelsPerEdge && nk >= 0 && nk < chunk.voxelsPerEdge){
-                neighbourChunkIndex = chunkIndex;
-                neighbourVoxelIndex = getVoxelIndex(chunk, ni, nj, nk);
-            } else{
-                GridCoordinate neighbourChunkCoordinate;
-                neighbourChunkCoordinate.i = chunk.chunkPosition.i + directions[d].i;
-                neighbourChunkCoordinate.j = chunk.chunkPosition.j + directions[d].j;
-                neighbourChunkCoordinate.k = chunk.chunkPosition.k + directions[d].k;
-                if(neighbourChunkCoordinate.i < 0 || neighbourChunkCoordinate.i >= worldSize || 
-                   neighbourChunkCoordinate.j < 0 || neighbourChunkCoordinate.j >= worldSize || 
-                   neighbourChunkCoordinate.k < 0 || neighbourChunkCoordinate.k >= worldSize){
-                    continue;
-                }
-                neighbourChunkIndex = getChunkIndex(neighbourChunkCoordinate.i, neighbourChunkCoordinate.j, neighbourChunkCoordinate.k);
-                if(ni == chunk.voxelsPerEdge){
-                    ni = 0;
-                } else if(ni == -1){
-                    ni = chunk.voxelsPerEdge - 1;
-                }
-                if(nj == chunk.voxelsPerEdge){
-                    nj = 0;
-                } else if(nj == -1){
-                    nj = chunk.voxelsPerEdge - 1;
-                }
-                if(nk == chunk.voxelsPerEdge){
-                    nk = 0;
-                } else if(nk == -1){
-                    nk = chunk.voxelsPerEdge - 1;
-                }
-                neighbourVoxelIndex = getVoxelIndex(chunks[neighbourChunkIndex], ni, nj, nk);
+            std::optional<VoxelLocation> location = findNeighbour(chunks, chunkIndex, voxelCoordinates, faceDirections[d]);
+            if(!location){ //If location has no value
+                continue;
             }
+            size_t neighbourChunkIndex = location->chunkIndex;
+            size_t neighbourVoxelIndex = location->voxelIndex;
             Chunk& neighbourChunk = chunks[neighbourChunkIndex];
-            if(directions[d].i + directions[d].j + directions[d].k < 0 && neighbourChunk.active.voxelFlags[neighbourVoxelIndex] == 1){
+            if(faceDirections[d].i + faceDirections[d].j + faceDirections[d].k < 0 && neighbourChunk.active.voxelFlags[neighbourVoxelIndex] == 1){
                 continue;
             }
             double neighbourVoxelTemperature = neighbourChunk.temperatures[neighbourVoxelIndex];
@@ -129,38 +155,67 @@ void computeHeatFlow(std::vector<Chunk>& chunks, size_t chunkIndex, double dt){
     }          
 }
 
-void computeFalling(std::vector<Chunk>& chunks, size_t chunkIndex){
+void computeFalling(std::vector<Chunk>& chunks, size_t chunkIndex, uint64_t tick){
     Chunk& chunk = chunks[chunkIndex];
     for(uint32_t presentIndex : chunk.active.voxelIndices){
         GridCoordinate voxelCoordinates = getVoxelCoordinates(chunk, presentIndex);
         double presentVoxelDensity = materialProperties[static_cast<size_t>(chunk.materials[presentIndex])].density;
-        size_t neighbourChunkIndex = 0;
-        size_t neighbourVoxelIndex = 0;
-        int nj = voxelCoordinates.j + 1;
-        if(nj    < chunk.voxelsPerEdge){
-            neighbourChunkIndex = chunkIndex;
-            neighbourVoxelIndex = getVoxelIndex(chunk, voxelCoordinates.i, nj, voxelCoordinates.k);
-        } else{
-            GridCoordinate neighbourChunkCoordinate;
-            neighbourChunkCoordinate.i = chunk.chunkPosition.i;
-            neighbourChunkCoordinate.j = chunk.chunkPosition.j + 1;
-            neighbourChunkCoordinate.k = chunk.chunkPosition.k;
-            if(neighbourChunkCoordinate.j >= worldSize){
-                continue;
-            }
-            neighbourChunkIndex = getChunkIndex(neighbourChunkCoordinate.i, neighbourChunkCoordinate.j, neighbourChunkCoordinate.k);
-            nj = 0;
-            neighbourVoxelIndex = getVoxelIndex(chunks[neighbourChunkIndex], voxelCoordinates.i, nj, voxelCoordinates.k);
-        }
-        Chunk& neighbourChunk = chunks[neighbourChunkIndex];
-        double neighbourVoxelDensity = materialProperties[static_cast<size_t>(neighbourChunk.materials[neighbourVoxelIndex])].density;
-        if(presentVoxelDensity <= neighbourVoxelDensity){
+        std::optional<VoxelLocation> target = findNeighbour(chunks, chunkIndex, voxelCoordinates, downDirection);
+        if(!target){ //If target has no value
             continue;
         }
+        if(isVacated(chunks, *target)){
+            continue;
+        }
+        double downDensity = materialProperties[static_cast<size_t>(chunks[target->chunkIndex].materials[target->voxelIndex])].density;
+        if(presentVoxelDensity <= downDensity){
+            target = std::nullopt;
+            std::optional<VoxelLocation> above = findNeighbour(chunks, chunkIndex, voxelCoordinates, upDirection);
+            if(above && (materialProperties[static_cast<size_t>(chunks[above->chunkIndex].materials[above->voxelIndex])].density >= presentVoxelDensity
+                || isVacated(chunks, *above))){
+                continue;
+            }
+            size_t start = (tick + presentIndex) % sideDirections.size();
+            for(size_t n = 0; n < sideDirections.size(); n++){
+                GridCoordinate direction = sideDirections[(start + n) % sideDirections.size()];
+                std::optional<VoxelLocation> side = findNeighbour(chunks, chunkIndex, voxelCoordinates, direction);
+                std::optional<VoxelLocation> belowSide = findNeighbour(chunks, chunkIndex, voxelCoordinates, {direction.i, 1, direction.k});
+                if(!side || !belowSide){
+                    continue;
+                }
+                if(isVacated(chunks, *side) || isVacated(chunks, *belowSide)){
+                    continue;
+                }
+                double sideVoxelDensity = materialProperties[static_cast<size_t>(chunks[side->chunkIndex].materials[side->voxelIndex])].density;
+                double belowVoxelDensity = materialProperties[static_cast<size_t>(chunks[belowSide->chunkIndex].materials[belowSide->voxelIndex])].density;
+                if(sideVoxelDensity < presentVoxelDensity && belowVoxelDensity < presentVoxelDensity){
+                    target = side;
+                    break;
+                }
+            }
+        }
+        if(!target){
+            continue;
+        }
+        size_t neighbourChunkIndex = target->chunkIndex;
+        size_t neighbourVoxelIndex = target->voxelIndex;
+        Chunk& neighbourChunk = chunks[neighbourChunkIndex];
         std::swap(chunk.materials[presentIndex], neighbourChunk.materials[neighbourVoxelIndex]);
         std::swap(chunk.energies[presentIndex], neighbourChunk.energies[neighbourVoxelIndex]);
         std::swap(chunk.temperatures[presentIndex], neighbourChunk.temperatures[neighbourVoxelIndex]);
+        wakeVoxel(chunk.vacated, presentIndex);
         wakeVoxel(neighbourChunk.nextActive, static_cast<uint32_t>(neighbourVoxelIndex));
+        double emptyCellDensity = materialProperties[static_cast<size_t>(chunk.materials[presentIndex])].density;
+        for(const GridCoordinate& direction : wakeDirections){ 
+            std::optional<VoxelLocation> nearby = findNeighbour(chunks, chunkIndex, voxelCoordinates, direction);
+            if(!nearby){
+                continue;
+            }
+            double nearbyDensity = materialProperties[static_cast<size_t>(chunks[nearby->chunkIndex].materials[nearby->voxelIndex])].density;
+            if(nearbyDensity > emptyCellDensity){
+                wakeVoxel(chunks[nearby->chunkIndex].nextActive, static_cast<uint32_t>(nearby->voxelIndex));
+            }
+        }
     }
 }
 

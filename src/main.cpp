@@ -165,12 +165,17 @@ int main(){
 	std::vector<Chunk> chunks = generateWorld();
 
 	validateVoxelIndexing(chunks[0]);
-	constexpr uint32_t fallingChunkIndex = 9;
-	constexpr uint32_t fallingVoxelIndex = 50;
-	chunks[fallingChunkIndex].materials[fallingVoxelIndex] = MaterialType::STONE;
-	chunks[fallingChunkIndex].energies[fallingVoxelIndex] = temperatureToEnergy(initialTemperature, MaterialType::STONE);
-	refreshVoxelTemperature(chunks[fallingChunkIndex], fallingVoxelIndex);
-	wakeVoxel(chunks[fallingChunkIndex].active, fallingVoxelIndex);
+	
+	constexpr uint32_t fallingChunkIndex = 13;
+	
+	for(int j = 0; j < voxelsPerChunk; j++){
+		const uint32_t fallingVoxelIndex = static_cast<uint32_t>(getVoxelIndex(chunks[fallingChunkIndex], 5, j, 5));
+		chunks[fallingChunkIndex].materials[fallingVoxelIndex] = MaterialType::STONE;
+		chunks[fallingChunkIndex].energies[fallingVoxelIndex] = temperatureToEnergy(initialTemperature, MaterialType::STONE);
+		refreshVoxelTemperature(chunks[fallingChunkIndex], fallingVoxelIndex);
+		wakeVoxel(chunks[fallingChunkIndex].active, fallingVoxelIndex);
+	}
+	
 	VkResult createChunkBufferResult;
 	for(Chunk& chunk : chunks){
 		fillFaceRenderList(chunk);
@@ -257,7 +262,9 @@ int main(){
 	uint64_t totalEnergy = 0;
 	float sensitivity = 0.001f;
 	const double dt = 1.0 / 60.0;
-	constexpr double timeScale = 0.1;
+
+	constexpr double timeScale = 0.01;
+
 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 	std::chrono::steady_clock::time_point previousFrameStart = std::chrono::steady_clock::now();
 	double elapsedTime = 0.0;
@@ -281,12 +288,16 @@ int main(){
 			totalEnergy = 0;
 			std::chrono::steady_clock::time_point simulateTimePrev = std::chrono::steady_clock::now();
 			for(size_t i = 0; i < chunks.size(); i++){ 
-				computeFalling(chunks, i);			
+				computeFalling(chunks, i, totalTicks);			
 			}
 			for(Chunk& chunk : chunks){
 				for(uint32_t index : chunk.nextActive.voxelIndices){
 					wakeVoxel(chunk.active, index);
 				}
+				for(uint32_t index : chunk.vacated.voxelIndices){
+					chunk.vacated.voxelFlags[index] = 0;
+				}
+				chunk.vacated.voxelIndices.clear();
 			}
 			for(Chunk& chunk : chunks){ 
 				updateTemperatures(chunk);

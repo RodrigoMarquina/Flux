@@ -19,7 +19,7 @@ std::array<uint16_t, 36> voxelIndexArray = {4, 1, 0, 4, 0, 2, //Front 4, 1, 0, 4
                                        5, 3, 0, 5, 0, 1, //Top
                                        4, 2, 6, 4, 6, 7}; //Bottom 
 
-*/
+
 
 
 std::array<Vertex, 36> faceDirections = {{
@@ -67,7 +67,7 @@ std::array<Vertex, 36> faceDirections = {{
 {{-0.5f, -0.5f, -0.5f}, {0.0f, 0.0f, 0.0f}}, // 7
 }};
 
-
+*/
 
 
 

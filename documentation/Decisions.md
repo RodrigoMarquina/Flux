@@ -600,8 +600,88 @@ the pass has finished for all chunks, every index in `nextActive` is also woken 
 - Merging afterwards means the new cell gets its heat calculated that tick, so a falling voxel keeps
   exchanging heat. Falling and heat alternate, one tick each, which stands in for them happening at once.
 
-**Limits.** One cell per tick is 0.6 m/s, with no acceleration. A voxel only falls straight down, so a
-one-voxel tower can stand. Nothing wakes a voxel when the one under it moves away.
+**Verified.** A 1,000 K stone voxel falling 15 cells through air across a chunk boundary, Release build:
+total energy stayed exactly 584,067,203,820 for 0.8 simulated seconds, and active voxels rose from 96 at
+0.1 s to 222 at 0.8 s. Conservation alone cannot prove the heat is right, so this shows the fall
+corrupts nothing, not that every value is correct.
+
+The same test at three time scales, Release:
+
+| `timeScale` | Ticks averaged per print | Active voxels | Tick cost | Per active voxel |
+|---|---|---|---|---|
+| 1.0 | ~60 | 234 to 400 | 0.021 to 0.033 ms | ~83 to 91 ns |
+| 0.1 | ~6 | 187 to 222 | 0.033 to 0.055 ms | ~160 to 255 ns |
+| 0.01 | 1 | 118 to 167 | 0.011 to 0.016 ms | ~90 to 97 ns |
+
+- **Deterministic.** Runs at 0.1 and 0.01 both reach 96 active voxels at 0.1 simulated seconds, so the
+  time scale does not change the simulation (D10).
+- **Heat spreads faster in air.** 271 active at 2 s here, against 44 at 2 s for a hot voxel inside stone.
+  Air diffuses about 25 times faster than stone, so air may become most of the active list.
+- **Not explained.** Cost per voxel is about 2.5 to 3 times the 26 to 36 ns of the stress test (D18). Cold
+  caches do not explain it: 0.01 should be the coldest run, yet it costs less than 0.1. Falling now adds
+  work per active voxel, and these voxels are scattered, not packed into one chunk, but neither has been
+  measured on its own. The 0.01 row comes from single ticks, so it is noisy.
+
+**Movement wakes what it changes.** Same idea as D15: a change wakes, being active does not. When a voxel
+leaves a cell, nine neighbours of that cell are checked: the cell above, the four beside it and the four
+diagonally above it. Each one denser than what is now in the empty cell is woken in `nextActive`, so air
+is not woken for nothing. The diagonals matter because a voxel that only touches the empty cell at a corner
+can step sideways and fall into it. A woken voxel that cannot move gets no vote and sleeps after one tick,
+so the ripple ends by itself, and a tower collapses one voxel per tick with no rule for towers. Other
+simulators either do this (Minecraft) or track dirty regions (Noita), which is the known next step if this
+becomes expensive.
+
+Tested with two stacked voxels at 300 K: the top one floats without the wake, and with it the pair lands
+stacked. Total energy stayed exactly 583,980,767,640, faces returned to 5,410, and 2 voxels were active
+during the fall.
+
+**Sliding.** A voxel blocked below steps one cell sideways, then falls on the next tick. It only steps if
+the side cell and the cell below that side are both less dense than it. Without the second check it would
+wander across flat ground forever and never sleep. Every move stays a swap with a direct neighbour, so
+nothing jumps through a corner. Sides are tried from `(tick + voxel index) % 4`, which avoids a permanent
+direction bias and keeps runs repeatable. Tested with a two-voxel tower: the top voxel stepped aside and
+landed beside the bottom one, seen on screen, because 5,410 faces and 0 active also fit a stacked pair.
+Total energy stayed exactly 583,980,767,640. A 10-voxel tower collapsed into a low pile with no visible
+lean, total energy exactly 584,498,878,200, everything asleep within the first simulated second.
+
+**Why not "two touching blocks hold".** Rodrigo considered a rule where a voxel stays put if at least two
+blocks touch it. It is simple, but a loose wall two voxels thick would stand at any height, and bonds are
+meant to make that difference (D21). A material's stickiness could later change how steep its piles are,
+once bonds exist.
+
+**Limits.** One cell per tick is 0.6 m/s, with no acceleration. Cost of `findNeighbour` and sliding with
+many moving voxels is not measured yet.
+
+---
+
+## D25 — A move reaches its neighbours on the next tick: vacated cells
+
+*2026-11-07 · Phase 3*
+
+Swaps happen immediately, so later voxels in the same pass saw cells emptied earlier in that pass. With a
+whole tower awake, the list ran top to bottom and every voxel stepped aside in the first tick: how far a
+change travelled in one tick depended on list order, not physics. Heat already avoids this by collecting
+changes in `deltaArray`.
+
+Each chunk now has a third `VoxelSet`, `vacated` (the type was renamed from `ActiveSet`, since not every
+set means awake). A move marks its old cell. For the rest of the tick a vacated cell still counts as
+occupied:
+- **Below a voxel:** the support is moving away. The voxel waits; it does not slide.
+- **Above a voxel:** the voxel still counts as covered, so it does not slide.
+- **A side cell or the cell below it:** that direction is not free this tick.
+
+No extra waking is needed: the voxel that left already woke all of these through `wakeDirections`. The set is
+cleared for all chunks after the falling pass, in the same loop that merges `nextActive` into `active`,
+because chunks read their neighbours' flags.
+
+**Cost.** One byte per voxel per chunk, plus the list.
+
+**Tested.** The 10-voxel tower, all awake: 2 active voxels on the first tick (the voxel that stepped aside,
+and the one below it, uncovered), then one more voxel peeling off each tick, settled at 0.25 s. Total energy
+exactly 584,498,878,200 throughout.
+
+**Remaining order effect.** A voxel blocked by one below it that is about to fall later in the same pass
+still counts as blocked. The top of a floating column that is all awake could step aside in mid-air.
 
 ---
 
@@ -624,8 +704,6 @@ one-voxel tower can stand. Nothing wakes a voxel when the one under it moves awa
   - How moving voxels stay in the active list, and where velocity data lives.
   - Whether D23 holds up, and its open items.
   - How a piece's voxels are found (D20) and the tipping rule.
-  - Piles sliding: a blocked voxel tries the four diagonal cells below it. Needs fair direction choice
-    and neighbours waking when a voxel moves away.
   - Spinning machines (D22).
 - **Electrical energy.** Current is driven by potential difference, a new kind of quantity, not more
   energy. Belongs to the Electrical Age.
