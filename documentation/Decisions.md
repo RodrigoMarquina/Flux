@@ -117,6 +117,8 @@ Revisit `state` only if profiling shows the derivation is hot.
 
 *2026-10-30 · Phase 3*
 
+**Revised by D26:** velocity is now a dense array.
+
 Almost no voxels are moving at any moment. A 12-byte velocity vector in every voxel would be almost
 entirely zeros, so velocity is stored only for active voxels, alongside the active list.
 
@@ -649,8 +651,15 @@ blocks touch it. It is simple, but a loose wall two voxels thick would stand at 
 meant to make that difference (D21). A material's stickiness could later change how steep its piles are,
 once bonds exist.
 
-**Limits.** One cell per tick is 0.6 m/s, with no acceleration. Cost of `findNeighbour` and sliding with
-many moving voxels is not measured yet.
+**Cost.** A full chunk of 1,000 stone voxels, all awake, dropped 10 cells onto stone (Release, plugged in,
+after D25). Everything was asleep within the first simulated second, total energy stayed exactly
+648,615,060,000, and the tick averaged 0.039 ms over that second. The print is per second, so the cost
+per voxel is unknown, but the whole collapse took about 2.3 ms of simulation in total, so no single tick
+exceeded that. The budget is 16.7 ms. At rest the tick is about 0.001 ms. The pile leaned slightly to one
+side. Likely causes, untested: voxels earlier in the list claim free cells first, and `(tick + index) % 4`
+is regular for evenly spaced voxels. Accepted for now.
+
+**Limits.** One cell per tick is 0.6 m/s, with no acceleration.
 
 ---
 
@@ -685,6 +694,85 @@ still counts as blocked. The top of a floating column that is all awake could st
 
 ---
 
+## D26 — Velocity is a dense array that moves with the voxel
+
+*2026-11-07 · Phase 3*
+
+Revises D6. Velocity is one more per-voxel array in the chunk, next to `energies` and `temperatures`. A move
+swaps it along with the other three, so it follows the voxel with no extra work.
+
+**Why D6 changed.** D6 was decided before voxels could move. Moving voxels now change index every tick, often
+across chunks. Sparse storage would mean finding each moving voxel's entry and moving it to the new index,
+because `voxelFlags` only says 0 or 1. A dense array follows the voxel with one swap and finds any voxel's
+velocity instantly, which D6 left open for collisions.
+
+**Cost.** 4 bytes per voxel for a falling speed only, 12 for a full 3D vector, including voxels that never
+move. A 1 m³ world is a million voxels, so 4 MB for falling speed. If memory becomes a problem, sparse
+storage can come back once motion is understood.
+
+**Still holds from D6.** Kinetic energy is never stored. How it is accounted for is the parked energy question.
+
+---
+
+## D27 — Falling accelerates: velocity plus progress through the cell
+
+*2026-11-07 · Phase 3*
+
+Each voxel has two dense `float`s (D26), swapped with the rest of its data: `velocities` (m/s, positive
+down) and `progress` (fraction of a cell covered). Each tick a voxel with free space below adds gravity × dt
+to its velocity and velocity × dt / cell size to its progress. It moves one cell per whole unit of progress,
+one swap at a time through `moveVoxel`, stopping at the first blocked or vacated cell. A voxel still
+building progress votes for itself so it does not sleep.
+
+This is the same idea as the fixed-timestep accumulator (D10), applied to distance, and the same idea as
+D23: the true position can lie between cells, the grid shows the cell. Simulation always uses the cell.
+
+**Landing.** The blocked branch resets velocity and progress, one tick after the voxel stops moving, so
+landing happens in one place. The bottom of the world also resets, because a voxel there never reaches
+the blocked branch. A vacated cell during a fall is not a landing: the voxel keeps its speed and continues
+next tick.
+
+**Moves are one helper.** `moveVoxel(chunks, from, to)` swaps all five arrays, marks the old cell vacated,
+votes for the new cell and wakes the neighbours of the old one. Sliding and every falling step use it.
+
+**Tested.** One voxel falling 9 cells, predicted to land on tick 8 (real physics 8.1 ticks): 1 active at
+0.1 s, 0 at 0.2 s. The 10-voxel tower settled by 0.4 s instead of 0.25 s, because a short drop from rest
+now takes about 3 ticks instead of 1. Total energy exact in both.
+
+**Not conserved yet.** Resetting the velocity destroys kinetic energy. The energy print does not show it,
+because it counts neither kinetic energy nor height. This is the parked energy question.
+
+---
+
+## D28 — Motion energy is an integer ledger; the check counts heat, height and motion
+
+*2026-11-07 · Phase 3*
+
+The energy check is now heat + height + motion, and it is exact.
+- **Height** is derived, never stored (EnergyEconomy): `heightEnergy(material, cells)` is `mgh` rounded to a
+  whole unit, so the same material at the same height always gives the same integer. Height is measured in
+  cells from the bottom of the world (`getCellHeight`). It is summed only for the printed check.
+- **Motion** is a dense `int32_t` ledger per voxel, `kineticEnergies`, swapped with the other arrays.
+  `moveVoxel` adds the height energy of both cells before the swap minus after it to the ledger of the voxel
+  that moved. A sideways step gives 0. A fall gives the faller's drop minus the rise of what it displaced,
+  so buoyancy is included.
+- **Landing** (`landVoxel`) adds the ledger to `energies`, checked against `uint32_t`, and clears it, along
+  with velocity and progress. It runs in the blocked branch and at the bottom of the world.
+
+**Why a ledger, not ½mv².** Motion moves in whole ticks and cells, so the `float` velocity never matches the
+height lost exactly: for one voxel falling 9 cells, ½mv² gives about 231 units against 238 from height. Heat
+from ½mv² would create or destroy a few units on every landing, and the check could no longer tell that apart
+from a real bug. The ledger is the source of truth for energy; velocity only describes motion. Same pattern as
+D2: store the conserved quantity as an integer, derive the convenient one.
+
+**Kinetic energy is stored after all.** D6 said it never would be. That held only while it was never counted.
+
+**Tested.** The 10-voxel tower, Release: total energy exactly 584,499,953,040 in every print, through falling,
+sliding and landing. Before the ledger, the same run lost 1,164 units, and the leaked amount matched the
+final pile exactly (9 voxels at height 10 and 1 at height 11).
+
+---
+
 ## Current voxel layout
 
 | Field | Type | Bytes |
@@ -698,9 +786,8 @@ still counts as blocked. The top of a floating column that is all awake could st
 
 - **Motion design questions.** To resume once a single voxel falls and lands:
   - Conflicts when two voxels or pieces want the same cell.
-  - Energy accounting: height to speed to heat, and what the conservation check adds up. Proposed, not
-    decided: height energy is a whole number per material and cell height, a piece stores its
-    mechanical energy as an integer, and landing heat is integer subtraction.
+  - Energy accounting for moving pieces (D23). Single voxels are done (D28); a piece would carry one
+    ledger for all its voxels.
   - How moving voxels stay in the active list, and where velocity data lives.
   - Whether D23 holds up, and its open items.
   - How a piece's voxels are found (D20) and the tipping rule.

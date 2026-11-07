@@ -23,12 +23,33 @@ void initializeChunk(Chunk& chunk, MaterialType material){
     chunk.active.voxelFlags.assign(voxelCount, 0);
     chunk.nextActive.voxelFlags.assign(voxelCount, 0);
     chunk.vacated.voxelFlags.assign(voxelCount, 0);
+    chunk.velocities.resize(voxelCount);
+    chunk.progress.resize(voxelCount);
+    chunk.kineticEnergies.resize(voxelCount);
+}
+
+int getCellHeight(const Chunk& chunk, size_t voxelIndex){
+    GridCoordinate voxelCoordinates = getVoxelCoordinates(chunk, voxelIndex);
+    const int j = voxelCoordinates.j;
+    const int globalJ = chunk.chunkPosition.j * chunk.voxelsPerEdge + j;
+    const int height = (worldSize * voxelsPerChunk - 1) - globalJ;
+    assert(height >= 0 && "Height is negative.");
+    return height;
 }
 
 uint64_t getChunkEnergy(const Chunk& chunk){
     uint64_t totalEnergy = 0;
     for(uint64_t energy : chunk.energies){
         totalEnergy += energy;
+    }
+
+    return totalEnergy;
+}
+
+uint64_t getChunkHeightEnergy(const Chunk& chunk){
+    uint64_t totalEnergy = 0;
+    for(size_t index = 0; index < chunk.materials.size(); index++){
+        totalEnergy += static_cast<uint64_t>(heightEnergy(chunk.materials[index], getCellHeight(chunk, index)));
     }
 
     return totalEnergy;
@@ -121,6 +142,35 @@ std::optional<VoxelLocation> findNeighbour(const std::vector<Chunk>& chunks, siz
     }
 }
 
+void moveVoxel(std::vector<Chunk>& chunks, const VoxelLocation& from, const VoxelLocation& to){
+    Chunk& fromChunk = chunks[from.chunkIndex];
+    Chunk& toChunk = chunks[to.chunkIndex];
+    int fromHeight = getCellHeight(fromChunk, from.voxelIndex);
+    int toHeight = getCellHeight(toChunk, to.voxelIndex);
+    int64_t before = heightEnergy(fromChunk.materials[from.voxelIndex], fromHeight) + heightEnergy(toChunk.materials[to.voxelIndex], toHeight); 
+    std::swap(fromChunk.materials[from.voxelIndex], toChunk.materials[to.voxelIndex]);
+    std::swap(fromChunk.energies[from.voxelIndex], toChunk.energies[to.voxelIndex]);
+    std::swap(fromChunk.temperatures[from.voxelIndex], toChunk.temperatures[to.voxelIndex]);
+    std::swap(fromChunk.velocities[from.voxelIndex], toChunk.velocities[to.voxelIndex]);
+    std::swap(fromChunk.progress[from.voxelIndex], toChunk.progress[to.voxelIndex]);
+    std::swap(fromChunk.kineticEnergies[from.voxelIndex], toChunk.kineticEnergies[to.voxelIndex]);
+    int64_t after = heightEnergy(fromChunk.materials[from.voxelIndex], fromHeight) + heightEnergy(toChunk.materials[to.voxelIndex], toHeight); 
+    toChunk.kineticEnergies[to.voxelIndex] += static_cast<int32_t>(before - after);
+    wakeVoxel(fromChunk.vacated, static_cast<uint32_t>(from.voxelIndex));
+    wakeVoxel(toChunk.nextActive, static_cast<uint32_t>(to.voxelIndex));
+    double emptyCellDensity = materialProperties[static_cast<size_t>(fromChunk.materials[from.voxelIndex])].density;
+    for(const GridCoordinate& direction : wakeDirections){ 
+        std::optional<VoxelLocation> nearby = findNeighbour(chunks, from.chunkIndex, getVoxelCoordinates(fromChunk, from.voxelIndex), direction);
+        if(!nearby){
+            continue;
+        }
+        double nearbyDensity = materialProperties[static_cast<size_t>(chunks[nearby->chunkIndex].materials[nearby->voxelIndex])].density;
+        if(nearbyDensity > emptyCellDensity){
+            wakeVoxel(chunks[nearby->chunkIndex].nextActive, static_cast<uint32_t>(nearby->voxelIndex));
+        }
+    }
+}
+
 void computeHeatFlow(std::vector<Chunk>& chunks, size_t chunkIndex, double dt){
     Chunk& chunk = chunks[chunkIndex];
     for(uint32_t presentIndex : chunk.active.voxelIndices){
@@ -155,7 +205,7 @@ void computeHeatFlow(std::vector<Chunk>& chunks, size_t chunkIndex, double dt){
     }          
 }
 
-void computeFalling(std::vector<Chunk>& chunks, size_t chunkIndex, uint64_t tick){
+void computeFalling(std::vector<Chunk>& chunks, size_t chunkIndex, uint64_t tick, double dt){
     Chunk& chunk = chunks[chunkIndex];
     for(uint32_t presentIndex : chunk.active.voxelIndices){
         GridCoordinate voxelCoordinates = getVoxelCoordinates(chunk, presentIndex);
@@ -164,11 +214,12 @@ void computeFalling(std::vector<Chunk>& chunks, size_t chunkIndex, uint64_t tick
         if(!target){ //If target has no value
             continue;
         }
-        if(isVacated(chunks, *target)){
+        if(isVacated(chunks, {chunkIndex, presentIndex})){
             continue;
         }
         double downDensity = materialProperties[static_cast<size_t>(chunks[target->chunkIndex].materials[target->voxelIndex])].density;
-        if(presentVoxelDensity <= downDensity){
+        if(presentVoxelDensity <= downDensity){ //Below blocked
+            landVoxel(chunks, {chunkIndex, presentIndex});
             target = std::nullopt;
             std::optional<VoxelLocation> above = findNeighbour(chunks, chunkIndex, voxelCoordinates, upDirection);
             if(above && (materialProperties[static_cast<size_t>(chunks[above->chunkIndex].materials[above->voxelIndex])].density >= presentVoxelDensity
@@ -179,43 +230,57 @@ void computeFalling(std::vector<Chunk>& chunks, size_t chunkIndex, uint64_t tick
             for(size_t n = 0; n < sideDirections.size(); n++){
                 GridCoordinate direction = sideDirections[(start + n) % sideDirections.size()];
                 std::optional<VoxelLocation> side = findNeighbour(chunks, chunkIndex, voxelCoordinates, direction);
-                std::optional<VoxelLocation> belowSide = findNeighbour(chunks, chunkIndex, voxelCoordinates, {direction.i, 1, direction.k});
-                if(!side || !belowSide){
+                std::optional<VoxelLocation> below = findNeighbour(chunks, chunkIndex, voxelCoordinates, {direction.i, 1, direction.k});
+                if(!side || !below){
                     continue;
                 }
-                if(isVacated(chunks, *side) || isVacated(chunks, *belowSide)){
+                if(isVacated(chunks, *side) || isVacated(chunks, *below)){
                     continue;
                 }
                 double sideVoxelDensity = materialProperties[static_cast<size_t>(chunks[side->chunkIndex].materials[side->voxelIndex])].density;
-                double belowVoxelDensity = materialProperties[static_cast<size_t>(chunks[belowSide->chunkIndex].materials[belowSide->voxelIndex])].density;
+                double belowVoxelDensity = materialProperties[static_cast<size_t>(chunks[below->chunkIndex].materials[below->voxelIndex])].density;
                 if(sideVoxelDensity < presentVoxelDensity && belowVoxelDensity < presentVoxelDensity){
                     target = side;
                     break;
                 }
             }
+        } else{
+            float velocity = chunk.velocities[presentIndex];
+            float progress = chunk.progress[presentIndex];               
+            velocity += static_cast<float>(gravity * dt);
+            progress += static_cast<float>(velocity * dt / voxelEdgeLength);
+            if(progress < 1){
+                chunk.velocities[presentIndex] = velocity;
+                chunk.progress[presentIndex] = progress;
+                wakeVoxel(chunk.nextActive, static_cast<uint32_t>(presentIndex)); //Vote for itself
+                continue;
+            } else{
+                VoxelLocation currentLocation = {chunkIndex, presentIndex};
+                GridCoordinate currentCoordinates = getVoxelCoordinates(chunks[chunkIndex], presentIndex);
+                while(progress >= 1){
+                    std::optional<VoxelLocation> below = findNeighbour(chunks, currentLocation.chunkIndex, currentCoordinates, downDirection);
+                    if(!below){
+                        landVoxel(chunks, currentLocation);
+                        break;
+                    }
+                    downDensity = materialProperties[static_cast<size_t>(chunks[below->chunkIndex].materials[below->voxelIndex])].density;
+                    if(presentVoxelDensity <= downDensity || isVacated(chunks, *below)){
+                        break;
+                    }
+                    moveVoxel(chunks, currentLocation, *below);
+                    currentLocation = *below;
+                    currentCoordinates = getVoxelCoordinates(chunks[currentLocation.chunkIndex], currentLocation.voxelIndex);
+                    progress -= 1.0f;
+                }
+                chunks[currentLocation.chunkIndex].velocities[currentLocation.voxelIndex] = velocity;
+                chunks[currentLocation.chunkIndex].progress[currentLocation.voxelIndex] = progress;
+                continue;
+            }
         }
         if(!target){
             continue;
         }
-        size_t neighbourChunkIndex = target->chunkIndex;
-        size_t neighbourVoxelIndex = target->voxelIndex;
-        Chunk& neighbourChunk = chunks[neighbourChunkIndex];
-        std::swap(chunk.materials[presentIndex], neighbourChunk.materials[neighbourVoxelIndex]);
-        std::swap(chunk.energies[presentIndex], neighbourChunk.energies[neighbourVoxelIndex]);
-        std::swap(chunk.temperatures[presentIndex], neighbourChunk.temperatures[neighbourVoxelIndex]);
-        wakeVoxel(chunk.vacated, presentIndex);
-        wakeVoxel(neighbourChunk.nextActive, static_cast<uint32_t>(neighbourVoxelIndex));
-        double emptyCellDensity = materialProperties[static_cast<size_t>(chunk.materials[presentIndex])].density;
-        for(const GridCoordinate& direction : wakeDirections){ 
-            std::optional<VoxelLocation> nearby = findNeighbour(chunks, chunkIndex, voxelCoordinates, direction);
-            if(!nearby){
-                continue;
-            }
-            double nearbyDensity = materialProperties[static_cast<size_t>(chunks[nearby->chunkIndex].materials[nearby->voxelIndex])].density;
-            if(nearbyDensity > emptyCellDensity){
-                wakeVoxel(chunks[nearby->chunkIndex].nextActive, static_cast<uint32_t>(nearby->voxelIndex));
-            }
-        }
+        moveVoxel(chunks, {chunkIndex, presentIndex}, *target);
     }
 }
 

@@ -167,7 +167,7 @@ int main(){
 	validateVoxelIndexing(chunks[0]);
 	
 	constexpr uint32_t fallingChunkIndex = 13;
-	
+
 	for(int j = 0; j < voxelsPerChunk; j++){
 		const uint32_t fallingVoxelIndex = static_cast<uint32_t>(getVoxelIndex(chunks[fallingChunkIndex], 5, j, 5));
 		chunks[fallingChunkIndex].materials[fallingVoxelIndex] = MaterialType::STONE;
@@ -263,7 +263,7 @@ int main(){
 	float sensitivity = 0.001f;
 	const double dt = 1.0 / 60.0;
 
-	constexpr double timeScale = 0.01;
+	constexpr double timeScale = 0.1;
 
 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 	std::chrono::steady_clock::time_point previousFrameStart = std::chrono::steady_clock::now();
@@ -285,10 +285,10 @@ int main(){
 		accumulator += scaledElapsedTime;
 		int ticks = 0;
 		while(accumulator >= dt && ticks < maxTicksPerFrame){ //Simulate loop
-			totalEnergy = 0;
+			
 			std::chrono::steady_clock::time_point simulateTimePrev = std::chrono::steady_clock::now();
 			for(size_t i = 0; i < chunks.size(); i++){ 
-				computeFalling(chunks, i, totalTicks);			
+				computeFalling(chunks, i, totalTicks, dt);			
 			}
 			for(Chunk& chunk : chunks){
 				for(uint32_t index : chunk.nextActive.voxelIndices){
@@ -310,11 +310,6 @@ int main(){
 			totalTickCost += std::chrono::duration<double, std::milli>(simulateTimePost - simulateTimePrev).count();
 			for(Chunk& chunk : chunks){ //Apply loop
 				applyHeatFlow(chunk);
-			}
-			totalActiveVoxels = 0;
-			for(Chunk& chunk : chunks){ 
-				totalActiveVoxels += chunk.active.voxelIndices.size();
-				totalEnergy += getChunkEnergy(chunk);
 			}
 			totalTicks++;
 			accumulator -= dt;
@@ -424,6 +419,12 @@ int main(){
 		printTimer += elapsedTime;
 		frameCount++;
 		if(printTimer >= 1.0){
+			totalActiveVoxels = 0;
+			totalEnergy = 0;
+			for(Chunk& chunk : chunks){ 
+				totalActiveVoxels += chunk.active.voxelIndices.size();
+				totalEnergy += getChunkEnergy(chunk) + getChunkHeightEnergy(chunk) + getChunkKineticEnergy(chunk);
+			}
 			std::cout << "FPS: " << frameCount / printTimer << "\n";
 			std::cout << "Elapsed simulated time: " << static_cast<double>(totalTicks) * dt << "s" << "\n";
 			if(ticksSincePrint > 0){

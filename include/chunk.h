@@ -34,6 +34,9 @@ struct Chunk{
     VoxelSet active;
     VoxelSet nextActive;
     VoxelSet vacated;
+    std::vector<float> velocities;
+    std::vector<float> progress;
+    std::vector<int32_t> kineticEnergies;
     GridCoordinate chunkPosition = {};
     glm::vec3 position = {};
     int voxelsPerEdge = 0;
@@ -51,6 +54,17 @@ inline size_t getVoxelIndex(const Chunk& chunk, int i, int j, int k){
     return static_cast<size_t>(i) * chunk.voxelsPerEdge * chunk.voxelsPerEdge + static_cast<size_t>(j) * chunk.voxelsPerEdge + static_cast<size_t>(k);
 }
 
+inline void landVoxel(std::vector<Chunk>& chunks, const VoxelLocation& location){
+    Chunk& chunk = chunks[location.chunkIndex];
+    chunk.velocities[location.voxelIndex] = 0.0f;
+    chunk.progress[location.voxelIndex] = 0.0f;
+    int64_t totalEnergy = chunk.energies[location.voxelIndex] + chunk.kineticEnergies[location.voxelIndex];
+    assert(totalEnergy >= 0 && "landing made energy go negative.");
+    assert(totalEnergy <= std::numeric_limits<uint32_t>::max() && "landing pushed energy past uint32.");            
+    chunk.energies[location.voxelIndex] = static_cast<uint32_t>(totalEnergy);
+    chunk.kineticEnergies[location.voxelIndex] = 0;
+}
+
 inline bool isVacated(const std::vector<Chunk>& chunks, const VoxelLocation& location){
     return chunks[location.chunkIndex].vacated.voxelFlags[location.voxelIndex] == 1;
 }
@@ -62,6 +76,15 @@ inline GridCoordinate getVoxelCoordinates(const Chunk& chunk, size_t index){
         static_cast<int>((index / static_cast<size_t>(chunk.voxelsPerEdge)) % chunk.voxelsPerEdge), 
         static_cast<int>(index % static_cast<size_t>(chunk.voxelsPerEdge))
     };  
+}
+
+inline uint64_t getChunkKineticEnergy(const Chunk& chunk){
+    int64_t totalKineticEnergy = 0; //Add values into a int64_t that can hold negatives and cast at the end.
+    for(int32_t kineticEnergy : chunk.kineticEnergies){
+        totalKineticEnergy += kineticEnergy;
+    }
+    assert(totalKineticEnergy >= 0 && "Chunk has a negative kinetic energy total.");
+    return static_cast<uint64_t>(totalKineticEnergy);
 }
 
 inline void refreshVoxelTemperature(Chunk& chunk, size_t index){
@@ -83,17 +106,21 @@ inline void validateVoxelIndexing([[maybe_unused]] const Chunk& chunk) {
     #endif
 }
 
+void moveVoxel(std::vector<Chunk>& chunks, const VoxelLocation& from, const VoxelLocation& to);
+
 void wakeVoxel(VoxelSet& voxelSet, uint32_t voxelIndex);
 
 void computeHeatFlow(std::vector<Chunk>& chunks, size_t chunkIndex, double dt);
 
-void computeFalling(std::vector<Chunk>& chunks, size_t chunkIndex, uint64_t tick);
+void computeFalling(std::vector<Chunk>& chunks, size_t chunkIndex, uint64_t tick, double dt);
 
 void applyHeatFlow(Chunk& chunk);
 
 void updateTemperatures(Chunk& chunk);
 
 uint64_t getChunkEnergy(const Chunk& chunk);
+
+uint64_t getChunkHeightEnergy(const Chunk& chunk);
 
 void fillFaceRenderList(Chunk& chunk);
 
