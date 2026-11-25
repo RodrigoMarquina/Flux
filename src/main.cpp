@@ -168,8 +168,11 @@ int main(){
 	
 	constexpr uint32_t fallingChunkIndex = 13;
 
-	for(int j = 0; j < voxelsPerChunk; j++){
-		const uint32_t fallingVoxelIndex = static_cast<uint32_t>(getVoxelIndex(chunks[fallingChunkIndex], 5, j, 5));
+	for(int i = 4; i < 7; i++){
+		const uint32_t fallingVoxelIndex = static_cast<uint32_t>(getVoxelIndex(chunks[fallingChunkIndex], i, 5, 2));
+		if(i > 3 && i < 6){
+			chunks[fallingChunkIndex].xBondHealth[fallingVoxelIndex] = 255;
+		}
 		chunks[fallingChunkIndex].materials[fallingVoxelIndex] = MaterialType::STONE;
 		chunks[fallingChunkIndex].energies[fallingVoxelIndex] = temperatureToEnergy(initialTemperature, MaterialType::STONE);
 		refreshVoxelTemperature(chunks[fallingChunkIndex], fallingVoxelIndex);

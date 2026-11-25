@@ -23,9 +23,14 @@ void initializeChunk(Chunk& chunk, MaterialType material){
     chunk.active.voxelFlags.assign(voxelCount, 0);
     chunk.nextActive.voxelFlags.assign(voxelCount, 0);
     chunk.vacated.voxelFlags.assign(voxelCount, 0);
+    chunk.supportChanged.voxelFlags.assign(voxelCount, 0);
+    chunk.visited.voxelFlags.assign(voxelCount, 0);
     chunk.velocities.resize(voxelCount);
     chunk.progress.resize(voxelCount);
     chunk.kineticEnergies.resize(voxelCount);
+    chunk.xBondHealth.resize(voxelCount);
+    chunk.yBondHealth.resize(voxelCount);
+    chunk.zBondHealth.resize(voxelCount);
 }
 
 int getCellHeight(const Chunk& chunk, size_t voxelIndex){
@@ -142,6 +147,62 @@ std::optional<VoxelLocation> findNeighbour(const std::vector<Chunk>& chunks, siz
     }
 }
 
+uint8_t getBondHealth(const std::vector<Chunk>& chunks, const VoxelLocation& from, const GridCoordinate& direction){
+    assert(std::abs(direction.i) + std::abs(direction.j) + std::abs(direction.k) == 1 && "More than one non-zero value.");
+    const Chunk& chunk = chunks[from.chunkIndex];
+    GridCoordinate voxelCoordinates = getVoxelCoordinates(chunk, from.voxelIndex);
+    VoxelLocation owner = from;
+    if(direction.i < 0 || direction.j < 0 || direction.k < 0){
+        std::optional<VoxelLocation> neighbour = findNeighbour(chunks, from.chunkIndex, voxelCoordinates, direction);
+        if(!neighbour){
+            return 0;
+        }
+        owner = *neighbour;
+    }
+    const Chunk& ownerChunk = chunks[owner.chunkIndex];
+    if(direction.i != 0){
+        return ownerChunk.xBondHealth[owner.voxelIndex];
+    } else if(direction.j != 0){
+        return ownerChunk.yBondHealth[owner.voxelIndex];
+    } else{
+        return ownerChunk.zBondHealth[owner.voxelIndex];
+    }
+}
+
+bool isBonded(const std::vector<Chunk>& chunks, const VoxelLocation& location){
+    for(const GridCoordinate& direction : faceDirections){
+        if(getBondHealth(chunks, location, direction) > 0){
+            return true;
+        }
+    }
+    return false;
+}
+
+std::vector<VoxelLocation> findCluster(std::vector<Chunk>& chunks, const VoxelLocation& start){
+    std::vector<VoxelLocation> cluster;
+    std::vector<VoxelLocation> toDo; 
+    toDo.push_back(start);
+    wakeVoxel(chunks[start.chunkIndex].visited, static_cast<uint32_t>(start.voxelIndex)); 
+    while(!toDo.empty()){
+        VoxelLocation current = toDo.back();
+        const Chunk& chunk = chunks[current.chunkIndex];
+        toDo.pop_back();
+        cluster.push_back(current);
+        for(const GridCoordinate& direction : faceDirections){
+            if(getBondHealth(chunks, current, direction) == 0){
+                continue;
+            }
+            std::optional<VoxelLocation> neighbour = findNeighbour(chunks, current.chunkIndex, getVoxelCoordinates(chunk, current.voxelIndex), direction);
+            if(!neighbour || chunks[neighbour->chunkIndex].visited.voxelFlags[neighbour->voxelIndex] == 1){
+                continue;
+            }
+            wakeVoxel(chunks[neighbour->chunkIndex].visited, static_cast<uint32_t>(neighbour->voxelIndex));
+            toDo.push_back(*neighbour);
+        }
+    }
+    return cluster;
+}
+
 void moveVoxel(std::vector<Chunk>& chunks, const VoxelLocation& from, const VoxelLocation& to){
     Chunk& fromChunk = chunks[from.chunkIndex];
     Chunk& toChunk = chunks[to.chunkIndex];
@@ -167,6 +228,9 @@ void moveVoxel(std::vector<Chunk>& chunks, const VoxelLocation& from, const Voxe
         double nearbyDensity = materialProperties[static_cast<size_t>(chunks[nearby->chunkIndex].materials[nearby->voxelIndex])].density;
         if(nearbyDensity > emptyCellDensity){
             wakeVoxel(chunks[nearby->chunkIndex].nextActive, static_cast<uint32_t>(nearby->voxelIndex));
+            if(isBonded(chunks, *nearby)){
+                wakeVoxel(chunks[nearby->chunkIndex].supportChanged, static_cast<uint32_t>(nearby->voxelIndex));
+            }
         }
     }
 }
@@ -208,12 +272,16 @@ void computeHeatFlow(std::vector<Chunk>& chunks, size_t chunkIndex, double dt){
 void computeFalling(std::vector<Chunk>& chunks, size_t chunkIndex, uint64_t tick, double dt){
     Chunk& chunk = chunks[chunkIndex];
     for(uint32_t presentIndex : chunk.active.voxelIndices){
+        if(isBonded(chunks, {chunkIndex, presentIndex})){
+            continue;
+        }
         GridCoordinate voxelCoordinates = getVoxelCoordinates(chunk, presentIndex);
         double presentVoxelDensity = materialProperties[static_cast<size_t>(chunk.materials[presentIndex])].density;
         std::optional<VoxelLocation> target = findNeighbour(chunks, chunkIndex, voxelCoordinates, downDirection);
         if(!target){ //If target has no value
             continue;
         }
+        
         if(isVacated(chunks, {chunkIndex, presentIndex})){
             continue;
         }

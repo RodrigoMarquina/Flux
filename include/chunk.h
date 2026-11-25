@@ -34,9 +34,14 @@ struct Chunk{
     VoxelSet active;
     VoxelSet nextActive;
     VoxelSet vacated;
+    VoxelSet supportChanged;
+    VoxelSet visited;
     std::vector<float> velocities;
     std::vector<float> progress;
     std::vector<int32_t> kineticEnergies;
+    std::vector<uint8_t> xBondHealth;
+    std::vector<uint8_t> yBondHealth;
+    std::vector<uint8_t> zBondHealth;
     GridCoordinate chunkPosition = {};
     glm::vec3 position = {};
     int voxelsPerEdge = 0;
@@ -121,6 +126,12 @@ void updateTemperatures(Chunk& chunk);
 uint64_t getChunkEnergy(const Chunk& chunk);
 
 uint64_t getChunkHeightEnergy(const Chunk& chunk);
+
+uint8_t getBondHealth(const std::vector<Chunk>& chunks, const VoxelLocation& from, const GridCoordinate& direction);
+
+bool isBonded(const std::vector<Chunk>& chunks, const VoxelLocation& location);
+
+std::vector<VoxelLocation> findCluster(std::vector<Chunk>& chunks, const VoxelLocation& start);
 
 void fillFaceRenderList(Chunk& chunk);
 

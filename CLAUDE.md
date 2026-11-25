@@ -21,7 +21,7 @@ FLUX is a custom voxel physics simulation engine and educational game, written f
 The world is composed entirely of voxels. Each voxel stores:
 - `material_type` — what it is (stone, copper, water, air...)
 - `temperature` — current heat in kelvin, spreads to neighbors
-- `connections[]` — bitmask of active structural bonds to 6 neighbors
+- `connections[]` — one byte of health per structural bond (0 means no bond); each voxel owns its +x, +y, +z bonds
 - `state` — solid, liquid, gas (loose material like sand is not a state: it is any solid with few or no bonds)
 - `conductivity` — rate of heat and electrical transfer
 - `velocity` — movement vector, non-zero only when active

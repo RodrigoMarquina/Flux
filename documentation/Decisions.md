@@ -79,6 +79,8 @@ neighbours never fully equalise. Accepted for now.
 
 *2026-10-30 · Phase 3*
 
+**Revised by D29:** one byte of health per bond replaces the bitmask. Ownership stays as described here.
+
 `connections` is a `uint8_t` bitmask. Each voxel owns only its +x, +y, +z bonds; the −x bond of a
 voxel is read from its −x neighbour's +x bit.
 
@@ -773,21 +775,56 @@ final pile exactly (9 voxels at height 10 and 1 at height 11).
 
 ---
 
+## D29 — A bond is one byte of health
+
+*2026-11-08 · Phase 3*
+
+Revises D4. Each voxel stores one `uint8_t` of health for each bond it owns, +x, +y and +z: 3 bytes per voxel.
+0 means no bond; the maximum means undamaged. Ownership stays as in D4.
+
+A bond's real strength is derived: health × the strength of the two materials × how much temperature weakens
+it. Only the damage is remembered, because nothing else can recover it. Material and temperature are never
+stored per bond.
+
+**Why not the bitmask.** One value does both jobs, for 2 more bytes per voxel. With only "bonded or not", a hit
+breaks a bond or does nothing. With health, repeated hits weaken bonds around an impact until a crack forms along
+the weakest ones. Phase 6 needs that: knapping a stone tool should emerge, not be scripted. Weakening with
+temperature also lets melting begin to emerge.
+
+**No direct-hit rule.** An impact should put energy into the bonds at the contact point and spread outward,
+weakening with distance. Close bonds break, farther ones lose some health. Not designed yet.
+
+**Open.** The strength table, including pairs of different materials. How temperature weakens a bond. How
+impact energy spreads and how it is split with heat (see Parked).
+
+---
+
 ## Current voxel layout
 
-| Field | Type | Bytes |
-|---|---|---|
-| `material_type` | `uint8_t` | 1 |
-| `energy` | `uint32_t` | 4 |
-| `connections` | `uint8_t` | 1 |
-| **Total** | | **6** |
+| Field | Type | Bytes | Status |
+|---|---|---|---|
+| `materials` | `uint8_t` | 1 | built |
+| `energies` | `uint32_t` | 4 | built |
+| `velocities` | `float` | 4 | built |
+| `progress` | `float` | 4 | built |
+| `kineticEnergies` | `int32_t` | 4 | built |
+| bond health | `uint8_t` × 3 | 3 | not built |
+| **Total** | | **20** | |
+
+Per-tick and bookkeeping data is not included: `temperatures` (4), `deltaArray` (8), and one flag byte each
+for `active`, `nextActive` and `vacated`.
 
 ## Parked
 
+- **GPU compute.** Vulkan compute shaders could run part of the simulation. Heat diffusion suits it best:
+  uniform, data-parallel, and it already collects changes before applying them. Falling suits it poorly:
+  swaps depend on order and two voxels can want one cell. Multithreading on the CPU comes first.
 - **Motion design questions.** To resume once a single voxel falls and lands:
   - Conflicts when two voxels or pieces want the same cell.
   - Energy accounting for moving pieces (D23). Single voxels are done (D28); a piece would carry one
     ledger for all its voxels.
+  - Splitting landing heat between the faller and what it hits (D28 puts it all in the faller). Design it
+    with bonds, since impacts will also need to break bonds.
   - How moving voxels stay in the active list, and where velocity data lives.
   - Whether D23 holds up, and its open items.
   - How a piece's voxels are found (D20) and the tipping rule.
