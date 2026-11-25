@@ -9,6 +9,8 @@
 #include <optional>
 
 inline constexpr double initialTemperature = 300.0;
+static constexpr uint8_t inCurrentCluster = 2;
+static constexpr uint8_t inSet = 1;
 
 struct GridCoordinate{
     int i = 0;
@@ -71,7 +73,7 @@ inline void landVoxel(std::vector<Chunk>& chunks, const VoxelLocation& location)
 }
 
 inline bool isVacated(const std::vector<Chunk>& chunks, const VoxelLocation& location){
-    return chunks[location.chunkIndex].vacated.voxelFlags[location.voxelIndex] == 1;
+    return chunks[location.chunkIndex].vacated.voxelFlags[location.voxelIndex] == inSet;
 }
 
 inline GridCoordinate getVoxelCoordinates(const Chunk& chunk, size_t index){
@@ -132,6 +134,10 @@ uint8_t getBondHealth(const std::vector<Chunk>& chunks, const VoxelLocation& fro
 bool isBonded(const std::vector<Chunk>& chunks, const VoxelLocation& location);
 
 std::vector<VoxelLocation> findCluster(std::vector<Chunk>& chunks, const VoxelLocation& start);
+
+bool isClusterSupported(std::vector<Chunk>& chunks, const std::vector<VoxelLocation>& cluster);
+
+void checkClusterSupport(std::vector<Chunk>& chunks);
 
 void fillFaceRenderList(Chunk& chunk);
 

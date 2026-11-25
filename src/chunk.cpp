@@ -4,6 +4,7 @@
 #include <limits>
 #include <algorithm>
 #include <cmath>
+#include <iostream>
 
 static constexpr GridCoordinate downDirection = {0, 1, 0};
 static constexpr GridCoordinate upDirection = {0, -1, 0};
@@ -62,9 +63,9 @@ uint64_t getChunkHeightEnergy(const Chunk& chunk){
 
 void wakeVoxel(VoxelSet& voxelSet, uint32_t voxelIndex){
     assert(voxelIndex < voxelSet.voxelFlags.size() && "Index out of range.");
-    if(voxelSet.voxelFlags[voxelIndex] != 1){
+    if(voxelSet.voxelFlags[voxelIndex] != inSet){
         voxelSet.voxelIndices.push_back(voxelIndex);
-        voxelSet.voxelFlags[voxelIndex] = 1;
+        voxelSet.voxelFlags[voxelIndex] = inSet;
     }
 }
 
@@ -193,7 +194,7 @@ std::vector<VoxelLocation> findCluster(std::vector<Chunk>& chunks, const VoxelLo
                 continue;
             }
             std::optional<VoxelLocation> neighbour = findNeighbour(chunks, current.chunkIndex, getVoxelCoordinates(chunk, current.voxelIndex), direction);
-            if(!neighbour || chunks[neighbour->chunkIndex].visited.voxelFlags[neighbour->voxelIndex] == 1){
+            if(!neighbour || chunks[neighbour->chunkIndex].visited.voxelFlags[neighbour->voxelIndex] == inSet){
                 continue;
             }
             wakeVoxel(chunks[neighbour->chunkIndex].visited, static_cast<uint32_t>(neighbour->voxelIndex));
@@ -201,6 +202,80 @@ std::vector<VoxelLocation> findCluster(std::vector<Chunk>& chunks, const VoxelLo
         }
     }
     return cluster;
+}
+
+bool isClusterSupported(std::vector<Chunk>& chunks, const std::vector<VoxelLocation>& cluster){
+    for(const VoxelLocation& voxel : cluster){
+        chunks[voxel.chunkIndex].visited.voxelFlags[voxel.voxelIndex] = inCurrentCluster;
+    }
+
+    bool supported = false;
+    for(const VoxelLocation& voxel : cluster){
+        std::optional<VoxelLocation> below = findNeighbour(chunks, voxel.chunkIndex, getVoxelCoordinates(chunks[voxel.chunkIndex], voxel.voxelIndex), downDirection);
+        if(!below){
+            supported = true;
+            break;
+        }
+        
+        if(chunks[below->chunkIndex].visited.voxelFlags[below->voxelIndex] == inCurrentCluster){
+            continue;
+        }
+        
+        double belowDensity = materialProperties[static_cast<size_t>(chunks[below->chunkIndex].materials[below->voxelIndex])].density;
+        double currentDensity = materialProperties[static_cast<size_t>(chunks[voxel.chunkIndex].materials[voxel.voxelIndex])].density;
+        if(belowDensity >= currentDensity){
+            supported = true;
+            break;
+        }
+    }
+
+    for(const VoxelLocation& voxel : cluster){
+        chunks[voxel.chunkIndex].visited.voxelFlags[voxel.voxelIndex] = inSet;
+    }
+
+    return supported;
+}
+
+void checkClusterSupport(std::vector<Chunk>& chunks){
+    std::vector<VoxelLocation> toCheck;
+    for(size_t chunkIndex = 0; chunkIndex < chunks.size(); chunkIndex++){
+        for(uint32_t supportIndex : chunks[chunkIndex].supportChanged.voxelIndices){
+            toCheck.push_back({chunkIndex, supportIndex});
+            chunks[chunkIndex].supportChanged.voxelFlags[supportIndex] = 0;
+        }
+        chunks[chunkIndex].supportChanged.voxelIndices.clear();
+    }
+    for(const VoxelLocation& voxel : toCheck){
+        if(chunks[voxel.chunkIndex].visited.voxelFlags[voxel.voxelIndex] == inSet){
+            continue;
+        }
+        if(!isBonded(chunks, voxel)){
+            continue;
+        }
+        std::vector<VoxelLocation> cluster = findCluster(chunks, voxel);
+        bool supported = isClusterSupported(chunks, cluster);
+        if(!supported){
+            std::sort(cluster.begin(), cluster.end(), [&chunks](const VoxelLocation& a, const VoxelLocation& b){
+                return getCellHeight(chunks[a.chunkIndex], a.voxelIndex) < getCellHeight(chunks[b.chunkIndex], b.voxelIndex);
+            });
+            std::optional<VoxelLocation> below;
+            for(const VoxelLocation& member : cluster){
+                below = findNeighbour(chunks, member.chunkIndex, getVoxelCoordinates(chunks[member.chunkIndex], member.voxelIndex), downDirection);
+                moveVoxel(chunks, member, *below);
+            }
+            wakeVoxel(chunks[below->chunkIndex].supportChanged, static_cast<uint32_t>(below->voxelIndex));
+        } else{
+            for(const VoxelLocation& member : cluster){
+                landVoxel(chunks, member);
+            }
+        }
+    }
+    for(Chunk& chunk : chunks){
+        for(uint32_t index : chunk.visited.voxelIndices){
+            chunk.visited.voxelFlags[index] = 0;
+        }
+        chunk.visited.voxelIndices.clear();
+    }
 }
 
 void moveVoxel(std::vector<Chunk>& chunks, const VoxelLocation& from, const VoxelLocation& to){
@@ -215,6 +290,9 @@ void moveVoxel(std::vector<Chunk>& chunks, const VoxelLocation& from, const Voxe
     std::swap(fromChunk.velocities[from.voxelIndex], toChunk.velocities[to.voxelIndex]);
     std::swap(fromChunk.progress[from.voxelIndex], toChunk.progress[to.voxelIndex]);
     std::swap(fromChunk.kineticEnergies[from.voxelIndex], toChunk.kineticEnergies[to.voxelIndex]);
+    std::swap(fromChunk.xBondHealth[from.voxelIndex], toChunk.xBondHealth[to.voxelIndex]);
+    std::swap(fromChunk.yBondHealth[from.voxelIndex], toChunk.yBondHealth[to.voxelIndex]);
+    std::swap(fromChunk.zBondHealth[from.voxelIndex], toChunk.zBondHealth[to.voxelIndex]);
     int64_t after = heightEnergy(fromChunk.materials[from.voxelIndex], fromHeight) + heightEnergy(toChunk.materials[to.voxelIndex], toHeight); 
     toChunk.kineticEnergies[to.voxelIndex] += static_cast<int32_t>(before - after);
     wakeVoxel(fromChunk.vacated, static_cast<uint32_t>(from.voxelIndex));

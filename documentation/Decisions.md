@@ -799,6 +799,48 @@ impact energy spreads and how it is split with heat (see Parked).
 
 ---
 
+## D30 — Clusters are checked for support only when support may have changed
+
+*2026-11-25 · Phase 3*
+
+A cluster is a group of voxels joined by bonds with health above 0. One decision is made per cluster, never
+per voxel.
+
+**When.** Not every awake bonded voxel: heat keeps voxels awake for hours without changing support, and a check
+per awake voxel would cost n² for a cluster of n. Instead, `moveVoxel` adds bonded voxels near an emptied cell to
+a per-chunk `supportChanged` set. Bond breaking will add to it too. A pass after falling checks each entry.
+
+**Once per cluster.** `findCluster` follows bonds with an explicit stack (no recursion, which could overflow for
+large clusters) and marks voxels in a per-chunk `visited` set. Entries of `supportChanged` already visited are
+skipped, so each cluster is searched once per tick. Both sets are cleared through their lists after the pass.
+
+**Supported** means some voxel of the cluster has, directly below it, either the bottom of the world or something
+at least as dense that is not part of the same cluster. Density makes floating emerge: wood on water is held, stone
+is not. A hollow boat would need the cluster's average density, later. Membership uses the flag value: the cluster
+being checked is marked 2 (`inCurrentCluster`) and reset to 1 afterwards, because `visited` alone cannot tell this
+cluster from another cluster searched earlier in the same tick.
+
+**Tested.** A floating bar of three bonded voxels, all three seeded: exactly one result, size 3, not supported.
+
+**Falling, first version: through the grid.** The support pass runs first in each tick, before loose voxels, so
+`vacated` is empty when it runs and its own moves are respected by loose voxels that tick. It takes the whole
+`supportChanged` list into a local copy and empties the sets before processing, so anything added during the pass
+belongs to the next tick (same idea as `active`/`nextActive`). Entries whose cell is no longer bonded are skipped.
+An unsupported cluster moves down one cell per tick: its voxels are sorted by height, lowest first, and each moves
+through `moveVoxel`, so every cell it enters is air or a cell a cluster-mate just left. Bonds are swapped with the
+other arrays: this is only valid because a whole cluster moves together within one tick. The cluster then re-adds
+one of its voxels to `supportChanged`. A supported cluster calls `landVoxel` on every voxel.
+
+Chosen over lifting pieces out (D23) for now: everything except the moving step carries over to a lifted version,
+and testing it first separates cluster bugs from lift-out bugs. It may also stay the method for small clusters.
+
+**Tested.** The three-voxel bar falling 4 cells within one chunk: total energy exactly 584,046,603,573 throughout.
+The same bar falling 14 cells from chunk 10 into chunk 13, Debug: exactly 584,046,604,368 throughout, no asserts.
+
+**Not yet.** One cell per tick, no acceleration. Balance (center of gravity) needs rotation (D22, D23).
+
+---
+
 ## Current voxel layout
 
 | Field | Type | Bytes | Status |

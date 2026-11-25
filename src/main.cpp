@@ -166,7 +166,7 @@ int main(){
 
 	validateVoxelIndexing(chunks[0]);
 	
-	constexpr uint32_t fallingChunkIndex = 13;
+	constexpr uint32_t fallingChunkIndex = 10;
 
 	for(int i = 4; i < 7; i++){
 		const uint32_t fallingVoxelIndex = static_cast<uint32_t>(getVoxelIndex(chunks[fallingChunkIndex], i, 5, 2));
@@ -177,6 +177,7 @@ int main(){
 		chunks[fallingChunkIndex].energies[fallingVoxelIndex] = temperatureToEnergy(initialTemperature, MaterialType::STONE);
 		refreshVoxelTemperature(chunks[fallingChunkIndex], fallingVoxelIndex);
 		wakeVoxel(chunks[fallingChunkIndex].active, fallingVoxelIndex);
+		wakeVoxel(chunks[fallingChunkIndex].supportChanged, fallingVoxelIndex);
 	}
 	
 	VkResult createChunkBufferResult;
@@ -288,8 +289,8 @@ int main(){
 		accumulator += scaledElapsedTime;
 		int ticks = 0;
 		while(accumulator >= dt && ticks < maxTicksPerFrame){ //Simulate loop
-			
 			std::chrono::steady_clock::time_point simulateTimePrev = std::chrono::steady_clock::now();
+			checkClusterSupport(chunks);
 			for(size_t i = 0; i < chunks.size(); i++){ 
 				computeFalling(chunks, i, totalTicks, dt);			
 			}
