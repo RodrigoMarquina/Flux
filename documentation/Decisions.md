@@ -837,7 +837,17 @@ and testing it first separates cluster bugs from lift-out bugs. It may also stay
 **Tested.** The three-voxel bar falling 4 cells within one chunk: total energy exactly 584,046,603,573 throughout.
 The same bar falling 14 cells from chunk 10 into chunk 13, Debug: exactly 584,046,604,368 throughout, no asserts.
 
-**Not yet.** One cell per tick, no acceleration. Balance (center of gravity) needs rotation (D22, D23).
+**Acceleration.** Clusters use the same `advanceFall` as loose voxels (D27), with one shared speed: velocity and
+progress are read from one voxel, advanced once, and written to every voxel together, so the copies cannot disagree.
+A Debug-only assert checks that they still match. Each whole cell of progress is one step: if the cluster is now
+supported it lands, otherwise every voxel moves down, each entry of the cluster list is updated to its new cell and
+that cell is registered in `visited` through `wakeVoxel`. Writing the flag directly would leave it out of the list,
+so it would never be cleared. Tested with the bar falling 14 cells from chunk 10: total energy exactly
+584,046,604,368 throughout, active voxels 5 at 0.1 s and 0 at 0.2 s, consistent with a landing on tick 10.
+
+**Later.** When clusters can join, the joined speed should be the momentum-weighted average.
+
+**Not yet.** Balance (center of gravity) needs rotation (D22, D23).
 
 ---
 

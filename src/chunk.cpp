@@ -236,7 +236,7 @@ bool isClusterSupported(std::vector<Chunk>& chunks, const std::vector<VoxelLocat
     return supported;
 }
 
-void checkClusterSupport(std::vector<Chunk>& chunks){
+void checkClusterSupport(std::vector<Chunk>& chunks, double dt){
     std::vector<VoxelLocation> toCheck;
     for(size_t chunkIndex = 0; chunkIndex < chunks.size(); chunkIndex++){
         for(uint32_t supportIndex : chunks[chunkIndex].supportChanged.voxelIndices){
@@ -255,15 +255,42 @@ void checkClusterSupport(std::vector<Chunk>& chunks){
         std::vector<VoxelLocation> cluster = findCluster(chunks, voxel);
         bool supported = isClusterSupported(chunks, cluster);
         if(!supported){
-            std::sort(cluster.begin(), cluster.end(), [&chunks](const VoxelLocation& a, const VoxelLocation& b){
-                return getCellHeight(chunks[a.chunkIndex], a.voxelIndex) < getCellHeight(chunks[b.chunkIndex], b.voxelIndex);
-            });
-            std::optional<VoxelLocation> below;
+            float velocity = chunks[cluster[0].chunkIndex].velocities[cluster[0].voxelIndex];
+            float progress = chunks[cluster[0].chunkIndex].progress[cluster[0].voxelIndex];
+            #ifndef NDEBUG
             for(const VoxelLocation& member : cluster){
-                below = findNeighbour(chunks, member.chunkIndex, getVoxelCoordinates(chunks[member.chunkIndex], member.voxelIndex), downDirection);
-                moveVoxel(chunks, member, *below);
+                assert(chunks[member.chunkIndex].velocities[member.voxelIndex] == velocity && "Velocities are not consistent in all the voxels of the cluster.");
             }
-            wakeVoxel(chunks[below->chunkIndex].supportChanged, static_cast<uint32_t>(below->voxelIndex));
+            #endif
+            advanceFall(velocity, progress, dt);
+            bool landed = false;
+            while(progress >= 1){
+                if(isClusterSupported(chunks, cluster)){
+                    for(const VoxelLocation& member : cluster){
+                        landVoxel(chunks, member);
+                    }
+                    landed = true;
+                    break;
+                }
+                std::sort(cluster.begin(), cluster.end(), [&chunks](const VoxelLocation& a, const VoxelLocation& b){
+                    return getCellHeight(chunks[a.chunkIndex], a.voxelIndex) < getCellHeight(chunks[b.chunkIndex], b.voxelIndex);
+                });
+                std::optional<VoxelLocation> below;
+                for(VoxelLocation& member : cluster){
+                    below = findNeighbour(chunks, member.chunkIndex, getVoxelCoordinates(chunks[member.chunkIndex], member.voxelIndex), downDirection);
+                    moveVoxel(chunks, member, *below);
+                    member = *below;
+                    wakeVoxel(chunks[member.chunkIndex].visited, static_cast<uint32_t>(member.voxelIndex));
+                }
+                progress -= 1.0f;
+            }
+            if(!landed){
+                for(const VoxelLocation& member : cluster){
+                    chunks[member.chunkIndex].velocities[member.voxelIndex] = velocity;
+                    chunks[member.chunkIndex].progress[member.voxelIndex] = progress;
+                }
+                wakeVoxel(chunks[cluster[0].chunkIndex].supportChanged, static_cast<uint32_t>(cluster[0].voxelIndex));
+            }
         } else{
             for(const VoxelLocation& member : cluster){
                 landVoxel(chunks, member);
@@ -347,6 +374,11 @@ void computeHeatFlow(std::vector<Chunk>& chunks, size_t chunkIndex, double dt){
     }          
 }
 
+void advanceFall(float& velocity, float& progress, double dt){
+    velocity += static_cast<float>(gravity * dt);
+    progress += static_cast<float>(velocity * dt / voxelEdgeLength);
+}
+
 void computeFalling(std::vector<Chunk>& chunks, size_t chunkIndex, uint64_t tick, double dt){
     Chunk& chunk = chunks[chunkIndex];
     for(uint32_t presentIndex : chunk.active.voxelIndices){
@@ -393,8 +425,7 @@ void computeFalling(std::vector<Chunk>& chunks, size_t chunkIndex, uint64_t tick
         } else{
             float velocity = chunk.velocities[presentIndex];
             float progress = chunk.progress[presentIndex];               
-            velocity += static_cast<float>(gravity * dt);
-            progress += static_cast<float>(velocity * dt / voxelEdgeLength);
+            advanceFall(velocity, progress, dt);
             if(progress < 1){
                 chunk.velocities[presentIndex] = velocity;
                 chunk.progress[presentIndex] = progress;

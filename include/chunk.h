@@ -119,6 +119,8 @@ void wakeVoxel(VoxelSet& voxelSet, uint32_t voxelIndex);
 
 void computeHeatFlow(std::vector<Chunk>& chunks, size_t chunkIndex, double dt);
 
+void advanceFall(float& velocity, float& progress, double dt);
+
 void computeFalling(std::vector<Chunk>& chunks, size_t chunkIndex, uint64_t tick, double dt);
 
 void applyHeatFlow(Chunk& chunk);
@@ -137,7 +139,7 @@ std::vector<VoxelLocation> findCluster(std::vector<Chunk>& chunks, const VoxelLo
 
 bool isClusterSupported(std::vector<Chunk>& chunks, const std::vector<VoxelLocation>& cluster);
 
-void checkClusterSupport(std::vector<Chunk>& chunks);
+void checkClusterSupport(std::vector<Chunk>& chunks, double dt);
 
 void fillFaceRenderList(Chunk& chunk);
 

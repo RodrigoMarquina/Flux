@@ -290,7 +290,7 @@ int main(){
 		int ticks = 0;
 		while(accumulator >= dt && ticks < maxTicksPerFrame){ //Simulate loop
 			std::chrono::steady_clock::time_point simulateTimePrev = std::chrono::steady_clock::now();
-			checkClusterSupport(chunks);
+			checkClusterSupport(chunks, dt);
 			for(size_t i = 0; i < chunks.size(); i++){ 
 				computeFalling(chunks, i, totalTicks, dt);			
 			}
